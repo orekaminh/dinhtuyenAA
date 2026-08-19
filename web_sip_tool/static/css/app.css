@@ -1,0 +1,134 @@
+/* ===========================================================================
+   APP DESIGN SYSTEM  (dùng chung cho toàn bộ trang, nạp SAU bootstrap.min.css)
+   - Bảng màu nút hài hòa, đồng bộ, chuyên nghiệp (đè màu mặc định Bootstrap 4.6).
+   - Tương tác hover / focus / active / disabled THỐNG NHẤT cho MỌI nút .btn.
+   Offline-safe: chỉ là 1 file CSS local, không CDN, không JS.
+   =========================================================================== */
+
+/* ---- TOKENS (tham chiếu nhanh) -------------------------------------------
+   Accent (primary)  #2563eb / hover #1d4ed8   (đồng bộ màu tab đang mở trên navbar)
+   Info  (kiểm tra)  #0ea5e9 / hover #0284c7
+   Success(fallback) #16a34a / hover #15803d
+   Warning(phân tích)#f59e0b / hover #d97706  (chữ tối)
+   Danger (dừng/xóa) #dc2626 / hover #b91c1c
+   Secondary(trung)  #64748b / hover #475569
+   --------------------------------------------------------------------------- */
+
+/* ---- TƯƠNG TÁC CHUNG CHO MỌI NÚT ----------------------------------------- */
+.btn {
+    font-weight: 600;
+    border-radius: 7px;
+    transition: transform .12s ease, box-shadow .15s ease,
+                background-color .15s ease, border-color .15s ease,
+                color .12s ease, filter .15s ease;
+}
+/* Hover: nhấc nhẹ + đổ bóng -> rõ ràng, đồng nhất trên TẤT CẢ nút */
+.btn:hover:not(:disabled):not(.disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .16);
+    filter: saturate(1.06);
+}
+.btn:active:not(:disabled):not(.disabled) {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .20);
+}
+/* Focus: viền sáng đồng bộ (accent) */
+.btn:focus,
+.btn.focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .30);
+}
+/* Disabled: mờ, không nhấc, không bóng (đồng nhất) */
+.btn:disabled,
+.btn.disabled {
+    opacity: .5;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+    filter: none;
+}
+
+/* ---- NÚT ĐẶC (solid) ------------------------------------------------------ */
+.btn-primary {
+    background-color: #2563eb; border-color: #2563eb; color: #fff;
+}
+.btn-primary:hover:not(:disabled) { background-color: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+
+.btn-info {
+    background-color: #0ea5e9; border-color: #0ea5e9; color: #fff;
+}
+.btn-info:hover:not(:disabled) { background-color: #0284c7; border-color: #0284c7; color: #fff; }
+
+.btn-success {
+    background-color: #16a34a; border-color: #16a34a; color: #fff;
+}
+.btn-success:hover:not(:disabled) { background-color: #15803d; border-color: #15803d; color: #fff; }
+
+.btn-warning {
+    background-color: #f59e0b; border-color: #f59e0b; color: #1f2937;
+}
+.btn-warning:hover:not(:disabled) { background-color: #d97706; border-color: #d97706; color: #1f2937; }
+
+.btn-danger {
+    background-color: #dc2626; border-color: #dc2626; color: #fff;
+}
+.btn-danger:hover:not(:disabled) { background-color: #b91c1c; border-color: #b91c1c; color: #fff; }
+
+/* ---- Ô lệnh MML đang ở chế độ sửa tay (cảnh báo) -------------------------- */
+.editing-warning {
+    background-color: #FFF3CD !important;
+    border: 2px solid #f59e0b !important;
+}
+
+.btn-secondary {
+    background-color: #64748b; border-color: #64748b; color: #fff;
+}
+.btn-secondary:hover:not(:disabled) { background-color: #475569; border-color: #475569; color: #fff; }
+
+/* ---- NÚT VIỀN (outline) — hover fill đồng bộ ------------------------------ */
+.btn-outline-primary {
+    color: #2563eb; border-color: #2563eb; background-color: transparent;
+}
+.btn-outline-primary:hover:not(:disabled) { background-color: #2563eb; border-color: #2563eb; color: #fff; }
+
+.btn-outline-danger {
+    color: #dc2626; border-color: #dc2626; background-color: transparent;
+}
+.btn-outline-danger:hover:not(:disabled) { background-color: #dc2626; border-color: #dc2626; color: #fff; }
+
+.btn-outline-secondary {
+    color: #475569; border-color: #cbd5e1; background-color: transparent;
+}
+.btn-outline-secondary:hover:not(:disabled) { background-color: #475569; border-color: #475569; color: #fff; }
+
+.btn-outline-light {
+    color: #fff; border-color: rgba(255, 255, 255, .55); background-color: transparent;
+}
+.btn-outline-light:hover:not(:disabled) { background-color: rgba(255, 255, 255, .15); border-color: #fff; color: #fff; }
+
+/* ---- Ô CHỌN RC (tab Ứng cứu 11x) — viền xanh, bo góc, đồng bộ hệ nút ----- */
+.rc-group { box-shadow: 0 1px 3px rgba(0, 0, 0, .08); border-radius: 8px; }
+.rc-group .input-group-text {
+    border: 2px solid #2563eb;
+    border-right: 0;
+    border-radius: 8px 0 0 8px;
+    letter-spacing: .2px;
+}
+.rc-select {
+    width: auto;
+    min-width: 84px;
+    border: 2px solid #2563eb;
+    border-radius: 0 8px 8px 0 !important;
+    font-weight: 600;
+    color: #1f2937;
+    cursor: pointer;
+    text-align: center;
+    text-align-last: center;      /* canh giữa số đang chọn (Chrome/Edge/Firefox) */
+    transition: box-shadow .15s ease, border-color .15s ease;
+}
+.rc-select:hover { border-color: #1d4ed8; }
+.rc-select:focus {
+    outline: none;
+    border-color: #1d4ed8;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .30);
+}

@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ứng cứu 11x (UCTT) - Web</title>
+    <script src="{{ url_for('static', filename='js/socket.io.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <style>
+        body {
+            background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif; font-size: 0.9rem;
+            height: 100vh; display: flex; flex-direction: column; margin: 0; overflow: hidden;
+        }
+        .card-header-custom { background-color: #fff; color: #003366; font-weight: bold; border-bottom: 2px solid #e9ecef; padding: 8px 15px; }
+        .card { border-radius: 4px; border: 1px solid #dee2e6; margin-bottom: 10px; flex-shrink: 0; }
+
+        /* Cột trái cuộn nếu dài */
+        .left-col-scroll { height: 100%; overflow-y: auto; overflow-x: hidden; padding-right: 5px; }
+
+        /* Console log (giống index.html) */
+        .log-container { display: flex; flex-direction: column; height: 100%; }
+        .log-box { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+        .log-panel {
+            background-color: #0D1117; color: #c9d1d9; font-family: 'Consolas', monospace;
+            font-size: 0.85rem; overflow-y: auto; padding: 10px; border: 1px solid #30363d;
+            white-space: pre-wrap; flex: 1; min-height: 0; margin-bottom: 0;
+        }
+        .log-title {
+            background-color: #21262d; color: #58a6ff; padding: 5px 10px; font-weight: bold; font-size: 0.85rem;
+            display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+        }
+        .btn-clear-log { cursor: pointer; color: #ff7b72; font-size: 0.8rem; text-decoration: none; }
+        .btn-clear-log:hover { text-decoration: underline; color: #ffad0a; }
+        .log-cmd { color: #79c0ff; font-weight: bold; }
+        .log-success { color: #56d364; }
+        .log-error { color: #ff7b72; }
+        .log-info { color: #d2a8ff; }
+        .log-raw { color: #c9d1d9; }
+
+        /* Bộ lệnh xem trước */
+        #cmdPreview {
+            background-color: #f8f9fa; border: 1px dashed #ced4da; border-radius: 4px;
+            font-family: 'Consolas', monospace; font-size: 0.82rem; color: #198754;
+            white-space: pre-wrap; padding: 8px; min-height: 60px; max-height: 140px; overflow-y: auto;
+        }
+        .rc-pill { font-size: 1.1rem; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+{% include '_navbar.html' %}
+
+<div class="container-fluid flex-grow-1 overflow-hidden pb-2 d-flex flex-column">
+    <div class="row g-2 w-100 m-0 h-100">
+
+        <div class="col-md-7 left-col-scroll">
+            <div class="card shadow-sm">
+                <div class="card-header-custom">🔄 Điều khiển Ứng cứu 11x (RC 113 / 114 / 115)</div>
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <div class="input-group input-group-lg rc-group" style="width: auto;">
+                            <span class="input-group-text bg-primary text-white fw-bold">📡 Chọn RC</span>
+                            <select id="rcSelect" class="form-select fw-bold rc-select" onchange="onRcChange()">
+                                <option value="113">113</option>
+                                <option value="114">114</option>
+                                <option value="115 (115/1155/1157)" title="RC 115 gồm 115 / 1155 / 1157">115</option>
+                            </select>
+                        </div>
+                        <button onclick="runUcttCheck()" id="btnCheck" class="btn btn-primary btn-lg fw-bold">🔍 Kiểm tra</button>
+                        <button onclick="stopUctt()" id="btnStop" class="btn btn-danger btn-lg fw-bold ms-auto" disabled>⏹ DỪNG</button>
+                    </div>
+
+                    <hr>
+
+                    <div id="statusLabel" class="alert alert-secondary mb-3" role="alert">
+                        Trạng thái: Chưa kiểm tra
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button onclick="executeUctt('changeover')" id="btnChangeover" class="btn btn-warning flex-fill fw-bold" disabled>
+                            🔀 Chuyển đổi...
+                        </button>
+                        <button onclick="executeUctt('fallback')" id="btnFallback" class="btn btn-success flex-fill fw-bold" disabled>
+                            ↩️ Fallback (ANRAR)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mt-2">
+                <div class="card-header-custom">⚙️ Bộ lệnh MML sẽ thực thi (tham khảo)</div>
+                <div class="card-body p-2">
+                    <div id="cmdPreview"># Lệnh sẽ hiển thị tại đây sau khi KIỂM TRA xong...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-5 log-container">
+            <div class="log-box mb-2">
+                <div class="log-title">
+                    📡 Console TSSE2C
+                    <span onclick="clearLog('C')" class="btn-clear-log">🗑️ Xóa Log</span>
+                </div>
+                <div id="logC" class="log-panel"></div>
+            </div>
+
+            <div class="log-box">
+                <div class="log-title" style="color: #ff7b72">
+                    📡 Console TSSE2D
+                    <span onclick="clearLog('D')" class="btn-clear-log">🗑️ Xóa Log</span>
+                </div>
+                <div id="logD" class="log-panel"></div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div class="w-100 bg-dark text-center py-1" style="font-size: 12px; color: #adb5bd; border-top: 1px solid #495057;">
+    &copy; 2026 SIP Routing Tool | VNPT | Developed by <strong>Trần Hữu Minh</strong> (<a href="mailto:tranhuuminh@vnpt.vn" class="text-decoration-none" style="color: #adb5bd;">tranhuuminh@vnpt.vn</a>)
+</div>
+
+<script>
+    var socket = io({ transports: ['websocket', 'polling'] });
+
+    // Lưu hành động được đề xuất cho mỗi nút sau khi kiểm tra
+    var proposed = {
+        rc: null,
+        changeover: { enabled: false, label: '', action: null, commands: [] },
+        fallback: { enabled: false, label: '', action: null, commands: [] }
+    };
+    var isBusy = false;
+
+    // --- LOGGING (giống index.html) ---
+    socket.on('log', function(data) {
+        var targetLog = document.getElementById(data.node === 'TSSE2C' ? "logC" : "logD");
+        if (targetLog) {
+            var span = document.createElement("span");
+            span.textContent = data.msg;
+            span.className = "log-" + data.type;
+            targetLog.appendChild(span);
+            targetLog.scrollTop = targetLog.scrollHeight;
+        }
+    });
+
+    socket.on('log_system', function(data) {
+        ['logC', 'logD'].forEach(function(id) {
+            var el = document.getElementById(id);
+            var div = document.createElement("div");
+            div.textContent = ">>> " + data.msg;
+            div.style.color = "yellow";
+            el.appendChild(div);
+            el.scrollTop = el.scrollHeight;
+        });
+    });
+
+    function clearLog(type) {
+        document.getElementById(type === 'C' ? "logC" : "logD").innerHTML = "";
+    }
+
+    // --- TRẠNG THÁI NÚT ---
+    function setBusy(busy) {
+        isBusy = busy;
+        document.getElementById("btnCheck").disabled = busy;
+        document.getElementById("rcSelect").disabled = busy;
+        document.getElementById("btnStop").disabled = !busy;
+        if (busy) {
+            document.getElementById("btnChangeover").disabled = true;
+            document.getElementById("btnFallback").disabled = true;
+        }
+    }
+
+    function setStatus(text, color) {
+        var el = document.getElementById("statusLabel");
+        el.className = "alert alert-" + (color || "secondary") + " mb-3";
+        el.textContent = text;
+    }
+
+    // Đổi RC -> reset trạng thái (tránh thực thi NHẦM RC cũ sau khi đã Kiểm tra RC khác)
+    function onRcChange() {
+        if (isBusy) return;   // đang chạy thì không reset
+        var rc = document.getElementById("rcSelect").value;
+        document.getElementById("btnChangeover").disabled = true;
+        document.getElementById("btnFallback").disabled = true;
+        document.getElementById("btnChangeover").textContent = "🔀 Chuyển đổi...";
+        document.getElementById("btnFallback").textContent = "↩️ Fallback (Không khả dụng)";
+        setStatus("Trạng thái RC=" + rc + ": Chưa kiểm tra", "secondary");
+        document.getElementById("cmdPreview").textContent = "# Lệnh sẽ hiển thị tại đây sau khi KIỂM TRA xong...";
+        proposed = {
+            rc: null,
+            changeover: { enabled: false, label: '', action: null, commands: [] },
+            fallback: { enabled: false, label: '', action: null, commands: [] }
+        };
+    }
+
+    // --- KIỂM TRA ---
+    function runUcttCheck() {
+        var rc = document.getElementById("rcSelect").value;
+        clearLog('C'); clearLog('D');
+        document.getElementById("cmdPreview").textContent = "# Đang kiểm tra trạng thái trên 2 node...";
+        // Reset nút + dữ liệu đề xuất; set proposed.rc ngay để khớp RC đang kiểm tra
+        document.getElementById("btnChangeover").textContent = "🔀 Chuyển đổi...";
+        document.getElementById("btnFallback").textContent = "↩️ Fallback (Không khả dụng)";
+        proposed = {
+            rc: rc,
+            changeover: { enabled: false, label: '', action: null, commands: [] },
+            fallback: { enabled: false, label: '', action: null, commands: [] }
+        };
+        setBusy(true);
+        setStatus("Trạng thái RC=" + rc + ": Đang kiểm tra 2C & 2D...", "primary");
+        socket.emit('run_uctt_check', { rc: rc });
+    }
+
+    socket.on('uctt_check_result', function(data) {
+        setBusy(false);
+        setStatus(data.status_text, data.status_color);
+
+        // Cảnh báo chủ động khi 2 node KHÔNG ĐỒNG BỘ
+        if (data.status_color === 'danger' && (data.status_text || '').indexOf('KHÔNG ĐỒNG BỘ') !== -1) {
+            alert('⚠️ Trạng thái 2 node KHÔNG ĐỒNG BỘ! Vui lòng kiểm tra tay.');
+        }
+
+        proposed.rc = document.getElementById("rcSelect").value;
+        proposed.changeover = data.changeover;
+        proposed.fallback = data.fallback;
+        proposed.changeover.commands = data.preview_changeover || [];
+        proposed.fallback.commands = data.preview_fallback || [];
+
+        var btnC = document.getElementById("btnChangeover");
+        btnC.textContent = "🔀 " + data.changeover.label;
+        btnC.disabled = !data.changeover.enabled;
+
+        var btnF = document.getElementById("btnFallback");
+        btnF.textContent = "↩️ " + data.fallback.label;
+        btnF.disabled = !data.fallback.enabled;
+
+        // Hiện lệnh MML thật sẽ chạy của hành động đang khả dụng
+        var preview = [];
+        if (data.changeover.enabled) preview = proposed.changeover.commands;
+        else if (data.fallback.enabled) preview = proposed.fallback.commands;
+        document.getElementById("cmdPreview").textContent =
+            preview.length ? preview.join('\n') : "# Không có hành động khả dụng (xem trạng thái ở trên).";
+    });
+
+    // --- THỰC THI ---
+    function executeUctt(type) {
+        try {
+            var info = (type === 'changeover') ? proposed.changeover : proposed.fallback;
+            if (!info || !info.enabled || !info.action || !proposed.rc) {
+                alert("⚠️ Dữ liệu chưa sẵn sàng. Vui lòng bấm 'Kiểm tra' lại trước khi thực hiện.");
+                return;
+            }
+
+            var cmds = info.commands || [];
+            var msg = "Bạn có chắc muốn thực hiện:\n'" + info.label + "'\n\n" +
+                      "• RC mục tiêu: " + proposed.rc + "\n" +
+                      "• Tổng số lệnh: " + cmds.length + "\n\n" +
+                      "Chi tiết các lệnh đầu tiên:\n" + cmds.slice(0, 5).join('\n');
+            if (cmds.length > 5) msg += "\n... và " + (cmds.length - 5) + " lệnh nữa.";
+            msg += "\n\nThao tác này sẽ chạy trên CẢ HAI node TSSE2C & TSSE2D.";
+            if (!confirm(msg)) return;
+
+            var execRc = proposed.rc, execLabel = info.label, execAction = info.action;
+            setBusy(true);
+            setStatus("Trạng thái RC=" + execRc + ": Đang thực hiện '" + execLabel + "'...", "warning");
+            document.getElementById("cmdPreview").textContent = cmds.join('\n');
+            socket.emit('execute_uctt', { rc: execRc, action: execAction });
+
+            // Reset đề xuất sau khi đã gửi (đề phòng bấm lại action cũ; proposed.rc giữ để hiển thị kết quả)
+            proposed.changeover = { enabled: false, label: '', action: null, commands: [] };
+            proposed.fallback = { enabled: false, label: '', action: null, commands: [] };
+        } catch (err) {
+            alert("Lỗi khi bấm nút thực thi: " + err);
+        }
+    }
+
+    socket.on('uctt_finished', function(data) {
+        var rc = data.rc || proposed.rc || document.getElementById("rcSelect").value;
+        if (data.ok) {
+            setStatus("Trạng thái RC=" + rc + ": ✅ Đã hoàn tất", "success");
+            alert("✅ Đã hoàn tất thực thi UCTT trên các node!");
+        } else {
+            setStatus("Trạng thái RC=" + rc + ": ❌ Thực thi thất bại / đã dừng", "danger");
+            alert("❌ Thực thi UCTT thất bại hoặc bị dừng. Vui lòng xem console.");
+        }
+        // Tự kiểm tra lại sau ~0.7s để kịp thấy nhãn hoàn tất (giống desktop root.after(500))
+        setTimeout(runUcttCheck, 700);
+    });
+
+    // --- DỪNG ---
+    function stopUctt() {
+        if (confirm("Dừng ngay lập tức?")) {
+            socket.emit('stop_task');
+            setStatus("Trạng thái: Đã gửi lệnh DỪNG... (chờ tiến trình đóng)", "danger");
+            // KHÔNG mở nút ngay; chờ server emit uctt_finished/uctt_check_result rồi setBusy(false)
+        }
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chặn A2P (TSSN2D) - Web</title>
+    <script src="{{ url_for('static', filename='js/socket.io.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <style>
+        body {
+            background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif; font-size: 0.9rem;
+            height: 100vh; display: flex; flex-direction: column; margin: 0; overflow: hidden;
+        }
+        .card-header-custom { background-color: #fff; color: #003366; font-weight: bold; border-bottom: 2px solid #e9ecef; padding: 8px 15px; }
+        .card { border-radius: 4px; border: 1px solid #dee2e6; margin-bottom: 10px; }
+        .left-col-scroll { height: 100%; overflow-y: auto; overflow-x: hidden; padding-right: 5px; }
+        textarea.form-control { font-family: 'Consolas', monospace; font-size: 0.9rem; }
+
+        /* Bảng danh sách chặn */
+        #tableWrap { max-height: 52vh; overflow-y: auto; }
+        .table-a2p { width: 100%; font-family: 'Consolas', monospace; font-size: 13px; border-collapse: collapse; }
+        .table-a2p th { position: sticky; top: 0; background: #f8f9fa; z-index: 1; border-bottom: 2px solid #dee2e6; padding: 5px; text-align: center; }
+        .table-a2p td { border-bottom: 1px solid #eee; padding: 4px 8px; vertical-align: middle; }
+        .row-unknown td { color: #6c757d; }
+        .row-new td { color: #0056b3; font-weight: bold; background: #eaf3ff; }
+        .table-a2p tr { cursor: pointer; }
+        .table-a2p tr.selected td { background: #cce5ff !important; }
+
+        /* Menu chuột phải tự viết (không cần Bootstrap JS, chạy offline) */
+        #ctxMenu {
+            position: fixed; display: none; z-index: 9999; min-width: 200px;
+            background: #ECEFF1; border: 1px solid #78909C; border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, .3); padding: 4px 0; font-size: 14px;
+        }
+        #ctxMenu .ctx-item { padding: 7px 16px; cursor: pointer; color: #37474F; }
+        #ctxMenu .ctx-item:hover { background: #CFD8DC; color: #000; }
+        #ctxMenu .ctx-sep { height: 1px; background: #B0BEC5; margin: 4px 0; }
+
+        /* Console (1 node) */
+        .log-container { display: flex; flex-direction: column; height: 100%; }
+        .log-title {
+            background-color: #21262d; color: #58a6ff; padding: 5px 10px; font-weight: bold; font-size: 0.85rem;
+            display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+        }
+        .log-panel {
+            background-color: #0D1117; color: #c9d1d9; font-family: 'Consolas', monospace;
+            font-size: 0.85rem; overflow-y: auto; padding: 10px; border: 1px solid #30363d;
+            white-space: pre-wrap; flex: 1; min-height: 0;
+        }
+        .btn-clear-log { cursor: pointer; color: #ff7b72; font-size: 0.8rem; text-decoration: none; }
+        .log-cmd { color: #79c0ff; font-weight: bold; }
+        .log-success { color: #56d364; }
+        .log-error { color: #ff7b72; }
+        .log-info { color: #d2a8ff; }
+        .log-raw { color: #c9d1d9; }
+
+        #report { white-space: pre-wrap; font-size: 0.85rem; }
+    </style>
+</head>
+<body>
+
+{% include '_navbar.html' %}
+
+<div class="container-fluid flex-grow-1 overflow-hidden pb-2 d-flex flex-column">
+    <div class="row g-2 w-100 m-0 h-100">
+
+        <!-- CỘT 1: Danh sách số đang chặn -->
+        <div class="col-md-5 left-col-scroll">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  <div class="alert alert-{{ category }} py-2 mb-2">{{ message }}</div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+
+            <div class="card shadow-sm">
+                <div id="freshHeader" class="card-header-custom">⚠️ Dữ liệu cache — Hãy bấm Quét để lấy mới</div>
+                <div class="card-body p-2">
+                    <button onclick="fetchData()" id="btnFetch" class="btn btn-info text-white w-100 fw-bold mb-2">
+                        1. Quét toàn bộ số ĐANG CHẶN trên Node
+                    </button>
+                    <input type="text" id="search" class="form-control form-control-sm mb-2" placeholder="🔍 Tìm nhanh số..." oninput="renderTable()">
+                    <div class="text-muted small mb-1">💡 Chọn nhiều dòng (Ctrl/Shift + click) rồi <b>chuột phải</b> để gỡ hàng loạt.</div>
+                    <div id="tableWrap">
+                        <table class="table-a2p">
+                            <thead>
+                                <tr><th style="width:45%">Số điện thoại</th><th style="width:40%">Ngày chặn (Log)</th><th style="width:15%"></th></tr>
+                            </thead>
+                            <tbody id="tableBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="text-muted small mt-1" id="countLabel">Chưa có dữ liệu.</div>
+                </div>
+            </div>
+
+            {% if current_user.username == 'admin' %}
+            <div class="card shadow-sm">
+                <div class="card-header-custom">⬆️ Nhập lịch sử chặn từ JSON (admin)</div>
+                <div class="card-body p-2">
+                    <form method="POST" action="{{ url_for('a2p_import') }}" enctype="multipart/form-data" class="d-flex gap-2 align-items-center">
+                        <input type="file" name="file" accept=".json,application/json" class="form-control form-control-sm" required>
+                        <button type="submit" class="btn btn-secondary btn-sm fw-bold text-nowrap"
+                                onclick="return confirm('Nhập file JSON vào CSDL? Số đã có sẽ được CẬP NHẬT ngày chặn.')">Nhập</button>
+                    </form>
+                    <div class="text-muted small mt-1">File dạng <code>{"số":"ngày"}</code> (a2p_history.json cũ). Số trùng → cập nhật ngày; số mới → thêm.</div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- CỘT 2: Tác vụ chặn/gỡ -->
+        <div class="col-md-4 left-col-scroll">
+            <div class="card shadow-sm">
+                <div class="card-header-custom">⚙️ Tác vụ Chặn / Gỡ</div>
+                <div class="card-body p-2">
+                    <label class="fw-bold small">Nhập số cần CHẶN THÊM (mỗi dòng 1 số):</label>
+                    <textarea id="addBox" class="form-control mb-2" rows="8" placeholder="Mỗi dòng 1 số. Tự cắt số 0 hoặc 84 ở đầu. VD: 012345 hoặc 8412345 → chặn 12345"></textarea>
+
+                    <label class="fw-bold small">Nhập số cần GỠ CHẶN:</label>
+                    <textarea id="delBox" class="form-control mb-2" rows="4" placeholder="Chọn số bên trái → chuột phải → 'Gỡ chặn'; hoặc dán thủ công mỗi dòng 1 số. Tự cắt số 0 hoặc 84 ở đầu, chỉ gỡ số đang chặn..."></textarea>
+
+                    <button onclick="analyze()" id="btnAnalyze" class="btn btn-warning w-100 fw-bold mb-2">2. Phân tích & Tạo lệnh</button>
+
+                    <div id="report" class="alert alert-secondary py-2 mb-2">Trạng thái: Sẵn sàng</div>
+
+                    <div class="d-flex gap-2">
+                        <button onclick="execute()" id="btnExecute" class="btn btn-danger flex-fill fw-bold" disabled>3. Tiến hành chặn/gỡ</button>
+                        <button onclick="stopTask()" id="btnStop" class="btn btn-secondary fw-bold" disabled>⏹ DỪNG</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CỘT 3: Console -->
+        <div class="col-md-3 log-container">
+            <div class="log-title">
+                📡 Console TSSN2D
+                <span onclick="clearLog()" class="btn-clear-log">🗑️ Xóa Log</span>
+            </div>
+            <div id="logA" class="log-panel"></div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Menu chuột phải cho bảng danh sách chặn -->
+<div id="ctxMenu">
+    <div class="ctx-item" id="ctxRemove">✅ Gỡ chặn các số đã chọn</div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item" id="ctxClose">❌ Đóng</div>
+</div>
+
+<div class="w-100 bg-dark text-center py-1" style="font-size: 12px; color: #adb5bd; border-top: 1px solid #495057;">
+    &copy; 2026 SIP Routing Tool | VNPT | Developed by <strong>Trần Hữu Minh</strong>
+</div>
+
+<script>
+    var socket = io({ transports: ['websocket', 'polling'] });
+    var allRows = [];          // [[num, date], ...]
+    var lastAdded = [];        // số vừa thêm để tô màu
+    var planAdd = [], planDel = [];
+    var isFresh = false;
+    var freshTimer = null;
+    var isBusy = false;
+    var lastScanTime = null;
+    var selectedNums = new Set();   // các số đang chọn trong bảng
+    var anchorNum = null;           // neo cho Shift+Click
+
+    // --- LOG ---
+    socket.on('log', function(data) {
+        if (data.node !== 'TSSN2D') return;
+        var el = document.getElementById('logA');
+        var span = document.createElement('span');
+        span.textContent = data.msg;
+        span.className = 'log-' + data.type;
+        el.appendChild(span);
+        el.scrollTop = el.scrollHeight;
+    });
+    socket.on('log_system', function(data) {
+        var el = document.getElementById('logA');
+        var div = document.createElement('div');
+        div.textContent = '>>> ' + data.msg; div.style.color = 'yellow';
+        el.appendChild(div); el.scrollTop = el.scrollHeight;
+    });
+    function clearLog() { document.getElementById('logA').innerHTML = ''; }
+
+    // Khóa nút khi đang chạy tác vụ SSH (Quét/Thực thi) để tránh thao tác chồng nhau
+    function setBusy(b) {
+        isBusy = b;
+        document.getElementById('btnFetch').disabled = b;
+        document.getElementById('btnAnalyze').disabled = b;
+        var stop = document.getElementById('btnStop');
+        stop.disabled = !b;
+        stop.className = b ? 'btn btn-danger fw-bold' : 'btn btn-secondary fw-bold';
+        if (b) {
+            document.getElementById('btnExecute').disabled = true;
+            var r = document.getElementById('report');
+            r.textContent = 'Đang chạy...';
+            r.className = 'alert alert-warning py-2 mb-2';
+        }
+    }
+
+    // --- FRESHNESS (cảnh báo cache cũ sau 3 phút) ---
+    function markFresh() {
+        isFresh = true;
+        lastScanTime = new Date().toLocaleTimeString();
+        var h = document.getElementById('freshHeader');
+        h.textContent = '✅ Dữ liệu thực (Cập nhật: ' + lastScanTime + ')';
+        h.style.color = '#198754';
+        if (freshTimer) clearTimeout(freshTimer);
+        freshTimer = setTimeout(markStale, 180000); // 3 phút
+    }
+    function markStale() {
+        isFresh = false;
+        var h = document.getElementById('freshHeader');
+        h.textContent = '⚠️ Dữ liệu đã cũ' + (lastScanTime ? ' (Lần cuối quét: ' + lastScanTime + ')' : '') + ' — Hãy Quét lại trước khi thao tác';
+        h.style.color = '#dc3545';
+        blinkWarning(6);   // nhấp nháy cảnh báo (giống desktop _blink_warning)
+    }
+    function blinkWarning(count) {
+        var h = document.getElementById('freshHeader');
+        if (count <= 0 || isFresh) { h.style.color = isFresh ? '#198754' : '#dc3545'; return; }
+        h.style.color = (count % 2) ? '#dc3545' : '#ffc107';   // đảo Đỏ/Vàng
+        setTimeout(function() { blinkWarning(count - 1); }, 400);
+    }
+
+    // --- KHI MỞ TRANG: tự quét lần đầu / cảnh báo dữ liệu cũ (giống desktop mở tab A2P) ---
+    socket.on('connect', function() { socket.emit('a2p_init'); });
+    socket.on('a2p_state', function(data) {
+        allRows = data.rows || [];
+        renderTable();
+        if (data.fresh) {
+            // Có người vừa quét trong 3 phút -> hiện ngay cache, không cần quét lại
+            document.getElementById('countLabel').textContent = '📊 ' + data.count + ' số đang chặn.';
+            isFresh = true;
+            lastScanTime = data.last_scan;
+            var h = document.getElementById('freshHeader');
+            h.textContent = '✅ Dữ liệu thực (Cập nhật: ' + data.last_scan + ')';
+            h.style.color = '#198754';
+            if (freshTimer) clearTimeout(freshTimer);
+            freshTimer = setTimeout(markStale, Math.max(0, 180000 - (data.age_sec || 0) * 1000));
+        } else {
+            // Cũ hoặc chưa từng quét -> tự động quét lại
+            lastScanTime = data.last_scan || null;
+            document.getElementById('countLabel').textContent = data.last_scan
+                ? ('⚠️ Dữ liệu cũ (lần cuối ' + data.last_scan + ') — đang quét lại...')
+                : 'Chưa có dữ liệu — đang quét lần đầu...';
+            fetchData();
+        }
+    });
+
+    // --- FETCH ---
+    function fetchData() {
+        clearLog();
+        lastAdded = [];               // reset tô màu "vừa thêm" mỗi lần quét thủ công (như desktop)
+        setBusy(true);
+        document.getElementById('countLabel').textContent = 'Đang quét...';
+        socket.emit('run_a2p_fetch');
+    }
+    socket.on('a2p_blocklist', function(data) {
+        if (data.rows === null) {
+            document.getElementById('countLabel').textContent = '❌ Lỗi quét: ' + (data.error || '');
+            return;
+        }
+        allRows = data.rows;
+        renderTable();
+        document.getElementById('countLabel').textContent = '📊 ' + data.count + ' số đang chặn.';
+        markFresh();
+    });
+    socket.on('a2p_fetch_finished', function() {
+        setBusy(false);
+    });
+
+    // --- RENDER TABLE + SEARCH ---
+    function renderTable() {
+        var q = document.getElementById('search').value.trim();
+        var tb = document.getElementById('tableBody');
+        tb.innerHTML = '';
+        // Sắp xếp: mới nhất lên đầu, "Unknown" xuống đáy (giống desktop)
+        var rows = allRows.slice().sort(function(a, b) {
+            var ka = (String(a[1]).indexOf('Unknown') !== -1) ? '0000' : String(a[1]);
+            var kb = (String(b[1]).indexOf('Unknown') !== -1) ? '0000' : String(b[1]);
+            return kb.localeCompare(ka);   // giảm dần; '0000' (Unknown) rơi xuống đáy
+        });
+        rows.forEach(function(r) {
+            var num = r[0], date = r[1];
+            if (q && num.indexOf(q) === -1) return;
+            var tr = document.createElement('tr');
+            tr.dataset.num = num;
+            var cls = [];
+            if (lastAdded.indexOf(num) !== -1) cls.push('row-new');
+            else if (String(date).indexOf('Unknown') !== -1) cls.push('row-unknown');
+            if (selectedNums.has(num)) cls.push('selected');
+            tr.className = cls.join(' ');
+            tr.innerHTML = '<td style="text-align:center;font-weight:bold">' + num + '</td>' +
+                           '<td style="text-align:center">' + date + '</td>' +
+                           '<td style="text-align:center"><button class="btn btn-sm btn-outline-danger py-0" onclick="event.stopPropagation(); addToDel(\'' + num + '\')">Gỡ</button></td>';
+            tr.addEventListener('click', function(e) { toggleSelect(num, e); });
+            tr.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                // Nếu số dưới con trỏ chưa được chọn -> chọn riêng nó; nếu đã thuộc -> giữ multi-select (giống desktop)
+                if (!selectedNums.has(num)) { selectedNums = new Set([num]); anchorNum = num; applySelectionClasses(); }
+                showCtxMenu(e.clientX, e.clientY);
+            });
+            tb.appendChild(tr);
+        });
+    }
+
+    // Chọn dòng: click thường (đơn), Ctrl/Cmd+Click (toggle), Shift+Click (chọn dải theo thứ tự hiển thị)
+    function toggleSelect(num, e) {
+        if (e.ctrlKey || e.metaKey) {
+            if (selectedNums.has(num)) selectedNums.delete(num); else selectedNums.add(num);
+            anchorNum = num;
+        } else if (e.shiftKey && anchorNum !== null) {
+            var order = Array.prototype.map.call(document.querySelectorAll('#tableBody tr'), function(tr) { return tr.dataset.num; });
+            var i1 = order.indexOf(anchorNum), i2 = order.indexOf(num);
+            if (i1 !== -1 && i2 !== -1) {
+                var lo = Math.min(i1, i2), hi = Math.max(i1, i2);
+                for (var i = lo; i <= hi; i++) selectedNums.add(order[i]);
+            }
+        } else {
+            if (selectedNums.size === 1 && selectedNums.has(num)) selectedNums = new Set();  // click lại -> bỏ chọn
+            else selectedNums = new Set([num]);
+            anchorNum = num;
+        }
+        applySelectionClasses();
+    }
+
+    function applySelectionClasses() {
+        Array.prototype.forEach.call(document.querySelectorAll('#tableBody tr'), function(tr) {
+            if (selectedNums.has(tr.dataset.num)) tr.classList.add('selected');
+            else tr.classList.remove('selected');
+        });
+    }
+
+    function addToDel(num) {
+        var box = document.getElementById('delBox');
+        var lines = box.value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+        if (lines.indexOf(num) === -1) {
+            lines.push(num);
+            box.value = lines.join('\n');
+        }
+    }
+
+    // --- MENU CHUỘT PHẢI (đẩy hàng loạt số đã chọn sang ô GỠ) ---
+    function showCtxMenu(x, y) {
+        var m = document.getElementById('ctxMenu');
+        m.style.left = x + 'px';
+        m.style.top = y + 'px';
+        m.style.display = 'block';
+    }
+    function hideCtxMenu() { document.getElementById('ctxMenu').style.display = 'none'; }
+    document.addEventListener('click', hideCtxMenu);            // click ra ngoài -> đóng
+    document.addEventListener('scroll', hideCtxMenu, true);
+    document.getElementById('ctxClose').onclick = hideCtxMenu;
+    document.getElementById('ctxRemove').onclick = function() {
+        var del = document.getElementById('delBox');
+        var existing = del.value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+        var added = 0;
+        selectedNums.forEach(function(n) { if (existing.indexOf(n) === -1) { existing.push(n); added++; } });
+        del.value = existing.join('\n');
+        a2pAppendLog('Đã thêm ' + added + ' số vào ô GỠ.');
+        hideCtxMenu();
+    };
+    function a2pAppendLog(msg) {
+        var el = document.getElementById('logA');
+        var div = document.createElement('div');
+        div.textContent = '>>> ' + msg; div.style.color = '#d2a8ff';
+        el.appendChild(div); el.scrollTop = el.scrollHeight;
+    }
+
+    // --- ANALYZE ---
+    function analyze() {
+        if (isBusy) { alert('Đang chạy tác vụ khác, vui lòng đợi.'); return; }
+        if (!isFresh) {
+            if (!confirm('⚠️ Dữ liệu có thể đã cũ (chưa quét trong vài phút).\nBạn có muốn QUÉT LẠI trước không?\n\n- OK: quét lại (rồi bấm Phân tích lần nữa)\n- Cancel: vẫn phân tích với dữ liệu hiện tại')) {
+                // Cancel -> vẫn phân tích tiếp
+            } else {
+                fetchData();
+                return;
+            }
+        }
+        document.getElementById('btnExecute').disabled = true;
+        document.getElementById('report').textContent = 'Đang phân tích...';
+        socket.emit('run_a2p_analyze', {
+            add_text: document.getElementById('addBox').value,
+            del_text: document.getElementById('delBox').value
+        });
+    }
+    socket.on('a2p_plan', function(data) {
+        var reportEl = document.getElementById('report');
+        // Hỏi xác nhận nếu có số vừa THÊM vừa GỠ (đã ưu tiên GỠ, bỏ khỏi THÊM)
+        if (data.conflict_removed && data.conflict_removed.length) {
+            var cr = data.conflict_removed;
+            var msg = '🔍 Phát hiện ' + cr.length + ' số vừa ở ô THÊM vừa ở ô GỠ:\n' +
+                      cr.slice(0, 10).join('\n') + (cr.length > 10 ? '\n... và ' + (cr.length - 10) + ' số khác.' : '') +
+                      '\n\nĐã ưu tiên GỠ và bỏ các số này khỏi ô THÊM. Tiếp tục?';
+            if (!confirm(msg)) {
+                reportEl.textContent = 'Đã hủy phân tích do trùng lặp THÊM/GỠ.';
+                reportEl.className = 'alert alert-secondary py-2 mb-2';
+                planAdd = []; planDel = [];
+                document.getElementById('btnExecute').disabled = true;
+                return;
+            }
+        }
+        planAdd = data.final_add || [];
+        planDel = data.final_del || [];
+        // AN TOÀN TUYỆT ĐỐI: nhập số để chặn nhưng tất cả đã được chặn từ trước
+        if (data.all_safe) {
+            reportEl.textContent = '✅ AN TOÀN TUYỆT ĐỐI: Bạn nhập ' + data.input_add_count + ' số, tất cả ĐÃ ĐƯỢC CHẶN từ trước.';
+            reportEl.className = 'alert alert-success py-2 mb-2';
+            document.getElementById('btnExecute').disabled = true;
+            return;
+        }
+        // Rebalance tự bù xóa -> đổ danh sách xóa cuối cùng vào ô GỠ cho minh bạch
+        if (planDel.length) document.getElementById('delBox').value = planDel.join('\n');
+        if (!data.can_execute) {
+            reportEl.textContent = (data.report ? data.report + '\n\n' : '') + '✅ Không có lệnh mới cần chạy.';
+            reportEl.className = 'alert alert-secondary py-2 mb-2';
+            document.getElementById('btnExecute').disabled = true;
+            return;
+        }
+        reportEl.textContent = (data.report || '') + '\n\n📋 Tổng ' + (data.commands ? data.commands.length : 0) + ' lệnh sẽ chạy.';
+        reportEl.className = 'alert alert-info py-2 mb-2';
+        document.getElementById('btnExecute').disabled = false;
+    });
+
+    // --- EXECUTE ---
+    function execute() {
+        if (!planAdd.length && !planDel.length) { alert('Chưa có kế hoạch. Hãy Phân tích trước.'); return; }
+        if (!confirm('Chạy chặn/gỡ trên TSSN2D?\n• THÊM: ' + planAdd.length + ' số\n• XÓA: ' + planDel.length + ' số')) return;
+        lastAdded = planAdd.slice();
+        setBusy(true);
+        document.getElementById('report').textContent = 'Đang thực thi...';
+        socket.emit('execute_a2p', { final_add: planAdd, final_del: planDel });
+    }
+    socket.on('a2p_finished', function(data) {
+        if (data.ok) {
+            alert('✅ Đã chạy xong! Đang quét lại danh sách...');
+            // Dọn ô nhập + ô tìm + bỏ chọn + quét lại để cập nhật
+            document.getElementById('addBox').value = '';
+            document.getElementById('delBox').value = '';
+            document.getElementById('search').value = '';
+            planAdd = []; planDel = []; selectedNums = new Set(); anchorNum = null;
+            fetchData();
+        } else {
+            alert('❌ Thực thi thất bại hoặc bị dừng. Xem console.');
+            setBusy(false);
+            document.getElementById('btnExecute').disabled = false;  // cho phép thử lại
+        }
+    });
+
+    function stopTask() {
+        // DỪNG riêng cho A2P (cách ly theo phiên) — không ảnh hưởng tab Định tuyến/UCTT của người khác
+        if (confirm('Dừng ngay lập tức?')) socket.emit('stop_a2p');
+    }
+</script>
+</body>
+</html>

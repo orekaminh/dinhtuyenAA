@@ -1,0 +1,19 @@
+# Secrets / credentials
+ssh_config.json
+web_sip_tool/instance/
+*.db
+
+# Sensitive operational data (customer numbers, real logs)
+web_sip_tool/a2p_history.json
+logs/
+
+# Python
+__pycache__/
+*.pyc
+
+# Build artifacts
+build/
+dist/
+web_sip_tool/build/
+web_sip_tool/dist/
+web_sip_tool/packages/

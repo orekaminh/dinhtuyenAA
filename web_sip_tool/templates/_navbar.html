@@ -1,0 +1,114 @@
+{# ===========================================================================
+   Thanh menu dùng chung cho toàn bộ trang (include vào index/uctt/a2p/history/
+   manage_users). Tự chứa CSS + JS (không phụ thuộc Bootstrap JS, không CDN —
+   chạy được trên mạng nội bộ offline). Tab active xác định qua request.endpoint.
+   =========================================================================== #}
+<style>
+    .app-navbar {
+        background: #0f2438;
+        display: flex; align-items: center; gap: 6px;
+        padding: 0 18px; height: 52px; flex-shrink: 0;
+        margin-bottom: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        font-family: 'Segoe UI', sans-serif;
+    }
+    .app-navbar .app-brand {
+        color: #ffffff; font-weight: 700; font-size: 1.02rem;
+        text-decoration: none; letter-spacing: .3px;
+        margin-right: 22px; white-space: nowrap;
+    }
+    .app-navbar .app-brand:hover { color: #ffffff; opacity: .9; }
+
+    .app-nav-group { display: flex; align-items: center; gap: 4px; }
+    .app-nav-link {
+        color: rgba(255, 255, 255, 0.62);
+        text-decoration: none; font-size: .875rem; font-weight: 500;
+        padding: 7px 14px; border-radius: 7px; white-space: nowrap;
+        transition: background-color .15s, color .15s;
+    }
+    .app-nav-link:hover { color: #ffffff; background: rgba(255, 255, 255, 0.16); text-decoration: none; box-shadow: inset 0 -2px 0 rgba(255,255,255,.45); }
+    .app-nav-link.active { color: #ffffff; background: #2563eb; box-shadow: 0 2px 8px rgba(37,99,235,.45); }   /* 1 màu nhấn duy nhất */
+    .app-nav-link.active:hover { background: #1d4ed8; box-shadow: 0 2px 8px rgba(37,99,235,.55); }
+
+    .app-nav-spacer { margin-left: auto; }
+
+    /* Menu tài khoản (dropdown tự viết) */
+    .app-usermenu { position: relative; }
+    .app-usermenu .app-user-btn {
+        background: transparent; color: #e6edf3;
+        border: 1px solid rgba(255, 255, 255, 0.28); border-radius: 7px;
+        padding: 6px 14px; font-size: .875rem; cursor: pointer;
+        display: flex; align-items: center; gap: 8px; line-height: 1;
+    }
+    .app-usermenu .app-user-btn:hover { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.55); color: #fff; }
+    .app-usermenu .app-caret { font-size: .6rem; opacity: .75; transition: transform .15s; }
+    .app-usermenu.open .app-caret { transform: rotate(180deg); }
+
+    .app-usermenu .app-menu-panel {
+        display: none; position: absolute; right: 0; top: calc(100% + 8px);
+        background: #ffffff; min-width: 210px; border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.20); border: 1px solid #e5e7eb;
+        padding: 6px; z-index: 1050;
+    }
+    .app-usermenu.open .app-menu-panel { display: block; }
+    .app-menu-head {
+        padding: 6px 12px 4px; font-size: .7rem; color: #9ca3af;
+        text-transform: uppercase; letter-spacing: .05em;
+    }
+    .app-menu-item {
+        display: block; padding: 9px 12px; color: #1f2937; text-decoration: none;
+        font-size: .875rem; border-radius: 7px;
+    }
+    .app-menu-item:hover { background: #f3f4f6; color: #111827; text-decoration: none; }
+    .app-menu-item.danger { color: #dc2626; }
+    .app-menu-item.danger:hover { background: #fef2f2; color: #b91c1c; }
+    .app-menu-sep { height: 1px; background: #e5e7eb; margin: 6px 6px; }
+</style>
+
+<nav class="app-navbar">
+    <a class="app-brand" href="{{ url_for('index') }}">TOOL ĐỊNH TUYẾN</a>
+
+    <div class="app-nav-group">
+        <a class="app-nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">Định tuyến</a>
+        <a class="app-nav-link {% if request.endpoint == 'uctt' %}active{% endif %}" href="{{ url_for('uctt') }}">Ứng cứu 11x</a>
+        <a class="app-nav-link {% if request.endpoint == 'a2p' %}active{% endif %}" href="{{ url_for('a2p') }}">Chặn A2P</a>
+        <a class="app-nav-link {% if request.endpoint == 'view_history' %}active{% endif %}" href="{{ url_for('view_history') }}">Lịch sử</a>
+    </div>
+
+    <div class="app-nav-spacer"></div>
+
+    <div class="app-usermenu" id="appUserMenu">
+        <button type="button" class="app-user-btn" onclick="appToggleUserMenu(event)">
+            <span>{{ current_user.username }}</span>
+            <span class="app-caret">&#9660;</span>
+        </button>
+        <div class="app-menu-panel">
+            <div class="app-menu-head">Tài khoản</div>
+            {% if current_user.username == 'admin' %}
+                <a class="app-menu-item" href="{{ url_for('manage_users_web') }}">Quản lý User</a>
+            {% endif %}
+            <a class="app-menu-item" href="{{ url_for('change_password') }}">Đổi mật khẩu</a>
+            <div class="app-menu-sep"></div>
+            <a class="app-menu-item danger" href="{{ url_for('logout') }}">Đăng xuất</a>
+        </div>
+    </div>
+</nav>
+
+<script>
+    function appToggleUserMenu(e) {
+        e.stopPropagation();
+        document.getElementById('appUserMenu').classList.toggle('open');
+    }
+    // Đóng menu khi bấm ra ngoài
+    document.addEventListener('click', function (e) {
+        var m = document.getElementById('appUserMenu');
+        if (m && !m.contains(e.target)) m.classList.remove('open');
+    });
+    // Đóng menu khi nhấn Esc
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            var m = document.getElementById('appUserMenu');
+            if (m) m.classList.remove('open');
+        }
+    });
+</script>

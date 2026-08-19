@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Quản lý User</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <style>
+        body { background: #f0f2f5; font-family: 'Segoe UI', sans-serif; }
+    </style>
+</head>
+<body>
+
+{% include '_navbar.html' %}
+
+<div class="container">
+    <h3 class="mb-4">⚙️ Quản lý Tài khoản</h3>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white fw-bold">
+                    ➕ Tạo User Mới
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label>Tên đăng nhập (Username)</label>
+                            <input type="text" name="username" class="form-control" required autocomplete="off">
+                        </div>
+                        <div class="mb-3">
+                            <label>Mật khẩu mặc định</label>
+                            <input type="password" name="password" class="form-control" required>
+                            <small class="text-muted">User sẽ bị buộc đổi pass ở lần đăng nhập đầu.</small>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 fw-bold">Tạo Tài Khoản</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-secondary text-white fw-bold">
+                    📋 Danh sách User hiện tại
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Trạng thái Đổi Pass</th>
+                                <th class="text-center">Hành động</th> </tr>
+                        </thead>
+                        <tbody>
+                            {% for u in users %}
+                            <tr>
+                                <td>{{ u.id }}</td>
+                                <td class="fw-bold text-primary">{{ u.username }}</td>
+                                <td>
+                                    {% if u.must_change_password %}
+                                        <span class="badge bg-warning text-dark">Chưa đổi (New)</span>
+                                    {% else %}
+                                        <span class="badge bg-success">Đã đổi</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if u.id != user.id %}
+                                    <form action="{{ url_for('delete_user', user_id=u.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('⚠️ Chú ý: Bạn có chắc chắn muốn xóa vĩnh viễn user [ {{ u.username }} ] không?');">
+                                        <button type="submit" class="btn btn-sm btn-danger fw-bold">Xóa</button>
+                                    </form>
+                                    {% else %}
+                                    <span class="text-muted small">Đang đăng nhập</span>
+                                    {% endif %}
+                                </td>
+                                </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center">Chưa có dữ liệu</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

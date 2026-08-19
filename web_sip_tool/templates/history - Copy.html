@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Lịch sử Tác động</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <style>
+        body { background: #f0f2f5; font-family: 'Segoe UI', sans-serif; }
+        .cmd-box { 
+            background: #0D1117; color: #56d364; font-family: 'Consolas', monospace; 
+            font-size: 0.8rem; padding: 8px; border-radius: 4px; white-space: pre-wrap;
+            max-height: 150px; overflow-y: auto;
+        }
+    </style>
+</head>
+<script>
+    function filterTable() {
+        // Lấy chữ đang gõ và chuyển thành chữ thường
+        var input = document.getElementById("searchInput");
+        var filter = input.value.toLowerCase();
+        
+        // Lấy tất cả các dòng (tr) trong thân bảng
+        var tbody = document.querySelector("tbody");
+        var trs = tbody.getElementsByTagName("tr");
+        
+        for (var i = 0; i < trs.length; i++) {
+            // Bỏ qua dòng thông báo "Chưa có lịch sử"
+            if (trs[i].cells.length < 3) continue;
+            
+            // Lấy nội dung của Cột 2 (index 1) và Cột 3 (index 2)
+            var userText = trs[i].cells[1].textContent || trs[i].cells[1].innerText;
+            var actionText = trs[i].cells[2].textContent || trs[i].cells[2].innerText;
+            
+            // Ghép 2 nội dung lại để tìm kiếm chung
+            var searchableText = userText + " " + actionText;
+            
+            // Kiểm tra xem chuỗi ghép có chứa từ khóa không
+            if (searchableText.toLowerCase().indexOf(filter) > -1) {
+                trs[i].style.display = ""; // Có chữ -> Hiện
+            } else {
+                trs[i].style.display = "none"; // Không có chữ -> Ẩn
+            }
+        }
+    }
+</script>
+<body>
+
+<nav class="navbar navbar-dark bg-dark mb-4">
+    <div class="container-fluid px-4">
+        <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">⬅ Về trang Tool</a>
+        <div class="text-white">👤 Đang đăng nhập: <strong>{{ user.username }}</strong></div>
+    </div>
+</nav>
+
+<div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center mb-3 mt-3">
+        <h4 class="text-primary mb-0">🕒 Lịch sử Tác động</h4>
+        
+        <form class="d-flex align-items-center gap-2" method="GET" action="{{ url_for('view_history') }}">
+            <input class="form-control form-control-sm" type="date" name="start_date" value="{{ start_date }}" title="Từ ngày">
+            <span class="text-muted fw-bold">-</span>
+            <input class="form-control form-control-sm" type="date" name="end_date" value="{{ end_date }}" title="Đến ngày">
+
+            <input id="searchInput" class="form-control form-control-sm" type="search" name="q" 
+                   placeholder="Từ khóa..." value="{{ search_query }}" onkeyup="filterTable()" style="width: 200px;">
+            
+            <button class="btn btn-sm btn-primary fw-bold text-nowrap" type="submit">Lọc DB</button>
+            
+            {% if search_query or start_date or end_date %}
+                <a href="{{ url_for('view_history') }}" class="btn btn-sm btn-outline-secondary text-nowrap">Hủy</a>
+            {% endif %}
+            
+            <a href="{{ url_for('export_history', q=search_query, start_date=start_date, end_date=end_date) }}" class="btn btn-sm btn-success fw-bold ms-2 text-nowrap">
+                📥 Xuất CSV
+            </a>
+        </form>
+    </div>
+    
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0 align-middle">
+				<thead class="table-dark">
+					<tr>
+						<th style="width: 15%;">Thời gian</th>
+						<th style="width: 15%;">Người thực hiện</th>
+						<th style="width: 70%;">Nội dung thao tác</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for log in pagination.items %}
+					<tr>
+						<td class="text-muted">{{ log.timestamp.strftime('%d/%m/%Y %H:%M') }}</td>
+						<td><span class="badge bg-secondary">{{ log.username }}</span></td>
+						<td>
+							<div class="fw-bold text-dark" style="white-space: pre-wrap;">{{ log.commands }}</div>
+						</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+        </div>
+		<div class="d-flex justify-content-between align-items-center mt-3 mb-4">
+        <div class="text-muted small">
+            Hiển thị trang {{ pagination.page }} / {{ pagination.pages }} (Tổng cộng {{ pagination.total }} thao tác)
+        </div>
+        
+        <nav>
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('view_history', page=pagination.prev_num, q=search_query) }}">« Trước</a>
+                </li>
+                
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        {% if pagination.page == page_num %}
+                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+                        {% else %}
+                            <li class="page-item"><a class="page-link" href="{{ url_for('view_history', page=page_num, q=search_query) }}">{{ page_num }}</a></li>
+                        {% endif %}
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('view_history', page=pagination.next_num, q=search_query) }}">Sau »</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    </div>
+</div>
+
+</body>
+</html>

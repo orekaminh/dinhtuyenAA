@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Đăng nhập hệ thống</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <style>
+        body { background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .login-card { width: 400px; padding: 30px; border-radius: 8px; background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h3 class="text-center mb-4 text-primary">🔐 Login System</h3>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <form method="POST">
+            <div class="mb-3">
+                <label>Tên đăng nhập</label>
+                <input type="text" name="username" class="form-control" required autofocus>
+            </div>
+            <div class="mb-3">
+                <label>Mật khẩu</label>
+                <input type="password" name="password" class="form-control" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Đăng nhập</button>
+        </form>
+		<div class="text-center mt-4 pt-3 border-top" style="font-size: 0.85rem; color: #6c757d;">
+            &copy; 2026 - SIP Routing Tool<br>
+        </div>
+    </div>
+</body>
+</html>
