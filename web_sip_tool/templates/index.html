@@ -100,15 +100,41 @@ Ví dụ:
             </div>
 
             <!-- BƯỚC 2: BẢNG TRẠNG THÁI THỰC TẾ -->
-            <div class="pro-card">
+            <div class="pro-card" id="cardStep2">
                 <div class="card-head">
-                    <div class="card-head-title">
+                    <div class="card-head-title d-flex align-items-center gap-2">
                         <span class="step-badge" style="background:#0284c7;">2</span>
                         <span>Trạng thái thực tế trên 2 Node (TSSE2C & TSSE2D)</span>
                     </div>
-                    <input type="text" id="tableFilter" class="code-textarea py-1 px-2" style="width: 170px; height: 28px; font-size: 11px;" placeholder="🔍 Lọc số / đích..." onkeyup="filterResultTable()">
+                    <div class="d-flex align-items-center gap-2">
+                        <input type="text" id="tableFilter" class="code-textarea py-1 px-2" style="width: 150px; height: 28px; font-size: 11px;" placeholder="🔍 Lọc số / đích..." onkeyup="filterResultTable()">
+                        <button type="button" id="btnExpandTable" class="btn-action-sm" onclick="toggleExpandResultTable()" title="Phóng to bảng để xem chi tiết">
+                            ⛶ Phóng to
+                        </button>
+                    </div>
                 </div>
-                <div class="card-body p-0" id="resultsBox" style="height: 155px; overflow-y: auto; background: #fff;">
+                
+                <!-- Thanh Thống kê Tổng quan (Live Summary) -->
+                <div id="checkSummaryBox" class="check-summary-banner" style="display: none;">
+                    <span class="text-muted fw-bold" style="font-size: 11px;">Phân tích:</span>
+                    <div class="summary-stat-item count-create" title="Số chưa khai báo, sẵn sàng tạo mới">
+                        <span>➕</span> <span id="cntCreate">0</span> <span>Tạo mới</span>
+                    </div>
+                    <div class="summary-stat-item count-change" title="Số đã có, cần chuyển hướng RC mới">
+                        <span>🔄</span> <span id="cntChange">0</span> <span>Chuyển hướng</span>
+                    </div>
+                    <div class="summary-stat-item count-match" title="Số đã đúng hướng, bỏ qua không cần can thiệp">
+                        <span>✓</span> <span id="cntMatch">0</span> <span>Đã đúng hướng</span>
+                    </div>
+                    <div class="summary-stat-item count-inherit" title="Số đang kế thừa từ dải cha">
+                        <span>⚡</span> <span id="cntInherit">0</span> <span>Kế thừa</span>
+                    </div>
+                    <div class="summary-stat-item count-error" title="Số bị lệch giữa 2 Node hoặc có lỗi">
+                        <span>❗</span> <span id="cntError">0</span> <span>Lệch / Lỗi</span>
+                    </div>
+                </div>
+
+                <div class="card-body p-0" id="resultsBox" style="height: 185px; overflow-y: auto; background: #fff;">
                     <table class="status-grid table-res w-100">
                         <thead>
                             <tr>
@@ -126,9 +152,10 @@ Ví dụ:
             <!-- BƯỚC 3: LỆNH MML SẼ THỰC THI -->
             <div class="pro-card">
                 <div class="card-head">
-                    <div class="card-head-title">
+                    <div class="card-head-title d-flex align-items-center gap-2">
                         <span class="step-badge" style="background:#059669;">3</span>
                         <span>Lệnh MML sẽ thực thi (Đã lọc & tối ưu)</span>
+                        <span id="mmlCountBadge" class="badge bg-success" style="font-size: 11px; display: none;">0 lệnh</span>
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         <button type="button" class="btn-action-sm" onclick="copyMMLCommands()">
@@ -362,6 +389,10 @@ Ví dụ:
         document.getElementById("resBody").innerHTML = ""; 
         syncCache = {};
         cleanInputComments();
+        var summaryBox = document.getElementById("checkSummaryBox");
+        if (summaryBox) summaryBox.style.display = "none";
+        var badge = document.getElementById("mmlCountBadge");
+        if (badge) badge.style.display = "none";
     });
 
     socket.on('check_result_item', function(data) {
@@ -402,14 +433,40 @@ Ví dụ:
     function updateCell(cell, data) {
         if (!cell) return;
         if (data.status === 'found') {
-            var shortDesc = data.desc.replace('ĐÃ KHAI BÁO', '').trim();
-            cell.innerHTML = `<span class="badge-status ok">✓ ${shortDesc || "OK"}</span>`;
+            var desc = data.desc.replace('ĐÃ KHAI BÁO', '').trim();
+            if (desc.startsWith('(') && desc.endsWith(')')) desc = desc.substring(1, desc.length - 1);
+            cell.innerHTML = `<span class="badge-status ok">✓ ${desc || "ĐÃ KHAI BÁO"}</span>`;
         } else if (data.status === 'inherited') {
             cell.innerHTML = `<span class="badge-status inherited">⚡ ${data.desc}</span>`;
+        } else if (data.status === 'no_data' || data.status === 'not_found') {
+            cell.innerHTML = `<span class="badge-status new-ready">➕ CHƯA CÓ (Tạo mới)</span>`;
         } else {
-            cell.innerHTML = `<span class="badge-status missing">✗ CHƯA CÓ</span>`;
+            cell.innerHTML = `<span class="badge-status err">❌ ${data.desc || "LỖI"}</span>`;
         }
     }
+
+    function toggleExpandResultTable() {
+        var card = document.getElementById("cardStep2");
+        var btn = document.getElementById("btnExpandTable");
+        if (card.classList.contains("card-fullscreen")) {
+            card.classList.remove("card-fullscreen");
+            btn.innerHTML = "⛶ Phóng to";
+            btn.title = "Phóng to bảng để xem chi tiết";
+        } else {
+            card.classList.add("card-fullscreen");
+            btn.innerHTML = "🗗 Thu nhỏ";
+            btn.title = "Thu nhỏ bảng về vị trí cũ (hoặc bấm Esc)";
+        }
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            var card = document.getElementById("cardStep2");
+            if (card && card.classList.contains("card-fullscreen")) {
+                toggleExpandResultTable();
+            }
+        }
+    });
 
     function calculateBNumber(rawInput) {
         var num = rawInput.trim();
@@ -593,6 +650,34 @@ Ví dụ:
 
         inputEl.value = newLines.join('\n');
         updateInputStats();
+
+        // Cập nhật thanh Thống kê Tổng quan (Live Summary Bar)
+        var cntCreate = 0, cntChange = 0, cntMatch = 0, cntInherit = 0, cntError = 0;
+        newLines.forEach(function(line) {
+            if (line.includes("✅ OK (Tạo mới)") || line.includes("✅ OK (Sẵn sàng")) cntCreate++;
+            else if (line.includes("🔄 OK")) cntChange++;
+            else if (line.includes("⚠️ Trùng khớp") || line.includes("đúng hướng")) cntMatch++;
+            else if (line.includes("🚫 Lỗi") || line.includes("❗ Lệch")) cntError++;
+        });
+
+        // Đếm kế thừa từ syncCache
+        Object.values(syncCache).forEach(function(res) {
+            if ((res.C && res.C.status === 'inherited') || (res.D && res.D.status === 'inherited')) {
+                cntInherit++;
+            }
+        });
+
+        var summaryBox = document.getElementById("checkSummaryBox");
+        if (cntCreate + cntChange + cntMatch + cntInherit + cntError > 0) {
+            document.getElementById("cntCreate").textContent = cntCreate;
+            document.getElementById("cntChange").textContent = cntChange;
+            document.getElementById("cntMatch").textContent = cntMatch;
+            document.getElementById("cntInherit").textContent = cntInherit;
+            document.getElementById("cntError").textContent = cntError;
+            summaryBox.style.display = "flex";
+        } else {
+            summaryBox.style.display = "none";
+        }
     }
 
     function checkDifference(cmdInput, currentDesc) {
@@ -640,6 +725,16 @@ Ví dụ:
 
     socket.on('config_generated', function(data) {
         document.getElementById("outputCommands").value = data.commands;
+        var validCmds = data.commands ? data.commands.split('\n').filter(function(l){ return l.trim() && !l.trim().startsWith('#'); }) : [];
+        var badge = document.getElementById("mmlCountBadge");
+        if (badge) {
+            if (validCmds.length > 0) {
+                badge.textContent = validCmds.length + " lệnh MML";
+                badge.style.display = "inline-block";
+            } else {
+                badge.style.display = "none";
+            }
+        }
         document.getElementById("btnExecute").disabled = (data.commands.startsWith("#") || !data.commands.trim());
         resetEditState();
     });
