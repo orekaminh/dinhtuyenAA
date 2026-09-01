@@ -135,6 +135,7 @@
                 </div>
                 <div class="card-body p-2">
                     <form method="POST" action="{{ url_for('a2p_import') }}" enctype="multipart/form-data" class="d-flex gap-1 align-items-center">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="file" name="file" accept=".json,application/json" class="form-control form-control-sm" style="font-size: 10.5px; height: 28px; padding: 2px 4px;" required>
                         <button type="submit" class="btn btn-secondary btn-sm fw-bold text-nowrap" style="height: 28px; padding: 2px 8px; font-size: 11px;"
                                 onclick="return confirm('Nhập file JSON vào CSDL? Số đã có sẽ được CẬP NHẬT ngày chặn.')">Nhập</button>

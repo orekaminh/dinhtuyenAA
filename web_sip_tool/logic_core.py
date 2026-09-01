@@ -10,6 +10,17 @@ def generate_commands(input_text, allow_free_input=False, skip_errors=True, mode
     
     # Danh sách lệnh xóa mở rộng
     DELETE_KEYWORDS = ["DELETE", "XOA", "XÓA", "HUY"]
+    ROUTE_SITES = {"HCM", "HNI", "IMS", "VIMS"}
+
+    def parse_action_site(parts):
+        action = parts[1].upper() if len(parts) > 1 else ""
+        site = parts[2].upper() if len(parts) > 2 else ""
+        if action == "TO":
+            action = "ROUTE"
+        elif action in ROUTE_SITES and not site:
+            site = action
+            action = "ROUTE"
+        return action, site
 
     for i, line in enumerate(lines):
         clean_line = line.split('#')[0].strip()
@@ -25,9 +36,7 @@ def generate_commands(input_text, allow_free_input=False, skip_errors=True, mode
         else:
             raw_num = parts[0]
             
-            # [SỬA LỖI Ở ĐÂY] Khai báo biến action trước khi đem xuống dưới kiểm tra
-            # (guard: dòng chỉ có số khi CHECK thì không có parts[1])
-            action = parts[1].upper() if len(parts) > 1 else ""
+            action, site = parse_action_site(parts)
             
             # [Fix] Xử lý số bắt đầu bằng 84 hoặc 0
             num = raw_num
@@ -36,6 +45,11 @@ def generate_commands(input_text, allow_free_input=False, skip_errors=True, mode
             
             if not num.isdigit():
                 error_reason = f"Số không hợp lệ: {raw_num}"
+            elif mode != 'CHECK' and action == "ROUTE":
+                allowed_sites = {"HCM", "HNI"} if num.startswith("138") else ROUTE_SITES
+                if site not in allowed_sites:
+                    allowed_text = ", ".join(sorted(allowed_sites))
+                    error_reason = f"Hướng '{site}' không hợp lệ (Chỉ nhận: {allowed_text})"
             elif not allow_free_input and action in DELETE_KEYWORDS:
                 curr_len = len(num)
                 is_len_valid = True
@@ -57,10 +71,6 @@ def generate_commands(input_text, allow_free_input=False, skip_errors=True, mode
             if not skip_errors: commands.append(f"# [LỖI Dòng {i+1}] {error_reason}")
             continue
 
-        # Lấy lại các biến sau khi đã validate (action/site có thể rỗng nếu chỉ KIỂM TRA)
-        action = parts[1].upper() if len(parts) > 1 else ""
-        site = parts[2].upper() if len(parts) > 2 else ""
-        
         cmd = None
         
         # --- CHẾ ĐỘ KIỂM TRA (ANBSP) ---
@@ -91,8 +101,7 @@ def generate_commands(input_text, allow_free_input=False, skip_errors=True, mode
                         cmd = f"ANBSI:B={b_val}-{num},M=0-0,BNT=3,F=500,RC=703,CC=1,{l_param}"
                     elif site == "HCM":
                         cmd = f"ANBSI:B={b_val}-{num},M=0-0,BNT=3,F=500,RC=742,CC=1,{l_param}"
-                    else:
-                        # Mặc định vIMS (607)
+                    elif site in ["IMS", "VIMS"]:
                         cmd = f"ANBSI:B={b_val}-{num},M=0-84,BNT=1,F=500,RC=607,CC=1,{l_param}"
                         
                 elif action in DELETE_KEYWORDS:
@@ -107,8 +116,7 @@ def generate_commands(input_text, allow_free_input=False, skip_errors=True, mode
                     # [UPDATE] 138: Cả HCM/HNI đều dùng M=0-84, BNT=1 (Theo Excel)
                     if site == "HNI":
                         cmd = f"ANBSI:B={b_val}-{num},M=0-84,BNT=1,F=500,RC=703,CC=1,{l_param}"
-                    else:
-                        # Mặc định HCM (742)
+                    elif site == "HCM":
                         cmd = f"ANBSI:B={b_val}-{num},M=0-84,BNT=1,F=500,RC=742,CC=1,{l_param}"
                         
                 elif action in DELETE_KEYWORDS:
@@ -126,8 +134,7 @@ def generate_commands(input_text, allow_free_input=False, skip_errors=True, mode
                     elif site == "HNI":
                         # [MỚI] HNI: RC=703, BNT=3, Không M
                         cmd = f"ANBSI:B={b_val}-{num},BNT=3,F=500,RC=703,CC=1,{l_param}"
-                    else:
-                        # Mặc định vIMS: RC=607, BNT=1, Có M
+                    elif site in ["IMS", "VIMS"]:
                         cmd = f"ANBSI:B={b_val}-{num},M=0-84,BNT=1,F=500,RC=607,CC=1,{l_param}"
                         
                 elif action in DELETE_KEYWORDS:

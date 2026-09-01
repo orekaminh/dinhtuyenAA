@@ -51,6 +51,7 @@
                 </div>
                 <div class="card-body">
                     <form method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-2">
                             <label class="fw-bold" style="font-size: 12px; color: #334155;">Tên đăng nhập (Username)</label>
                             <input type="text" name="username" class="code-textarea py-1 px-2" style="font-family: var(--font-sans); height: 34px;" required autocomplete="off" placeholder="VD: minhth, nghiap...">
@@ -99,6 +100,7 @@
                                 <td style="text-align: center;">
                                     {% if u.id != user.id %}
                                     <form action="{{ url_for('delete_user', user_id=u.id) }}" method="POST" style="display: inline;" onsubmit="return confirmDeleteUser(this, '{{ u.username }}');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size: 11px;">Xóa</button>
                                     </form>
                                     {% else %}

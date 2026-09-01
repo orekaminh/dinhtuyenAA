@@ -1,9 +1,11 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from datetime import datetime, timedelta
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO, emit, disconnect
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
 import paramiko
 import time
 import threading
@@ -45,10 +47,10 @@ def get_action_username(current_web_user=None):
 
 # --- CẤU HÌNH CƠ BẢN ---
 def resource_path(relative_path):
-    try:
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
         base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
+    else:
+        base_path = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_path, relative_path)
 
 app = Flask(__name__, template_folder=resource_path('templates'), static_folder=resource_path('static'))
@@ -65,15 +67,44 @@ DB_PATH = os.path.join(INSTANCE_DIR, 'users.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + DB_PATH.replace('\\', '/')  # instance/users.db cạnh .exe
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
+app.config['WTF_CSRF_TIME_LIMIT'] = 8 * 60 * 60
 
 # Khởi tạo Extension
 db = SQLAlchemy(app)
+csrf = CSRFProtect(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login' # Nếu chưa login thì đá về route này
 
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
-stop_event = threading.Event()
+socketio = SocketIO(app, async_mode='threading')
+
+# Routing/UCTT dùng cờ dừng riêng theo từng phiên Socket.IO. Không dùng một
+# threading.Event toàn cục vì thao tác của user này sẽ ảnh hưởng user khác.
+task_stop_events = {}
+task_stop_lock = threading.Lock()
+
+def _get_task_stop(sid):
+    with task_stop_lock:
+        ev = task_stop_events.get(sid)
+        if ev is None:
+            ev = threading.Event()
+            task_stop_events[sid] = ev
+        return ev
+
+def socket_login_required(fn):
+    """Từ chối mọi Socket.IO event nếu phiên web chưa đăng nhập."""
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        if not current_user.is_authenticated:
+            disconnect()
+            return None
+        return fn(*args, **kwargs)
+    return wrapped
+
+@socketio.on('connect')
+def handle_socket_connect(auth=None):
+    if not current_user.is_authenticated:
+        return False
 
 SSH_CONFIG = {
     'TSSE2C': {'host': '10.202.47.54', 'user': 'minhth', 'pass': 'S@igon#10'},
@@ -103,7 +134,7 @@ class A2PHistory(db.Model):
     
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    return db.session.get(User, int(user_id))
 
 @app.route('/history')
 @login_required
@@ -375,11 +406,13 @@ def _parse_anbsp_output(raw_output, b_number_full):
 
 # --- SOCKET EVENTS ---
 @socketio.on('stop_task')
+@socket_login_required
 def handle_stop_task():
-    stop_event.set()
+    _get_task_stop(request.sid).set()
     emit('log_system', {'msg': '🛑 Đã nhận lệnh DỪNG...', 'type': 'error'})
 
 @socketio.on('generate_config_preview')
+@socket_login_required
 def handle_generate_preview(data):
     input_text = data.get('input', '')
     allow_free = data.get('allow_free', False)
@@ -388,31 +421,42 @@ def handle_generate_preview(data):
     emit('config_generated', {'commands': cmd_str})
 
 @socketio.on('run_check_automation')
+@socket_login_required
 def handle_check_automation(data):
+    sid = request.sid
     input_text = data.get('input', '')
     allow_free = data.get('allow_free', False)
     check_commands = generate_commands(input_text, allow_free_input=allow_free, skip_errors=True, mode='CHECK')
     if not check_commands:
         emit('log_system', {'msg': '❌ Không có lệnh kiểm tra.', 'type': 'error'}); return
     emit('log_system', {'msg': f'🔄 Đang kiểm tra {len(check_commands)} lệnh...', 'type': 'info'})
-    stop_event.clear()
+    stop_ev = _get_task_stop(sid)
+    stop_ev.clear()
     emit('clear_results')
     def run_wrapper():
-        t1 = threading.Thread(target=run_ssh_task, args=('TSSE2C', check_commands, True))
-        t2 = threading.Thread(target=run_ssh_task, args=('TSSE2D', check_commands, True))
+        results = {}
+
+        def run_node(node_name):
+            results[node_name] = run_ssh_task(node_name, check_commands, True, stop_ev, sid)
+
+        t1 = threading.Thread(target=run_node, args=('TSSE2C',))
+        t2 = threading.Thread(target=run_node, args=('TSSE2D',))
         t1.start()
         t2.start()
         
         t1.join() # Chờ TSSE2C xong
         t2.join() # Chờ TSSE2D xong
         
-        # Chỉ gửi tín hiệu khi CẢ HAI đã hoàn thành
-        socketio.emit('check_finished')
+        # Chỉ cho phép sinh cấu hình khi CẢ HAI node kiểm tra thành công.
+        ok = bool(results.get('TSSE2C')) and bool(results.get('TSSE2D')) and not stop_ev.is_set()
+        socketio.emit('check_finished', {'ok': ok}, room=sid)
 
     threading.Thread(target=run_wrapper).start()
 
 @socketio.on('execute_config_ssh')
+@socket_login_required
 def handle_execute_config(data):
+    sid = request.sid
     # 1. Lấy danh sách lệnh
     commands = [line.strip() for line in data.get('commands', '').split('\n') if line.strip() and not line.strip().startswith('#')]
     if not commands: return
@@ -438,42 +482,49 @@ def handle_execute_config(data):
     if len(target_nodes) < 2:
         log_content = f"[Đẩy RIÊNG: {', '.join(target_nodes)}]\n" + log_content
 
-    stop_event.clear()
+    stop_ev = _get_task_stop(sid)
+    stop_ev.clear()
 
     # 3. Luồng chạy chính
     def run_wrapper():
         threads = []
+        results = {}
+
+        def run_node(node_name):
+            results[node_name] = run_ssh_task(node_name, commands, False, stop_ev, sid)
+
         for node in target_nodes:
-            t = threading.Thread(target=run_ssh_task, args=(node, commands, False))
+            t = threading.Thread(target=run_node, args=(node,))
             t.start()
             threads.append(t)
         for t in threads:
             t.join()
 
-        # === ĐOẠN ĐIỀU CHỈNH: KIỂM TRA TRẠNG THÁI TRƯỚC KHI LƯU ===
-        # Chỉ lưu vào DB nếu người dùng KHÔNG bấm nút Dừng (stop_event không được set)
-        if not stop_event.is_set():
+        ok = all(results.get(node) is True for node in target_nodes) and not stop_ev.is_set()
+
+        # Chỉ lưu audit khi toàn bộ node đích thực thi thành công.
+        if ok:
             # Vì đang chạy trong luồng phụ (Thread), cần gọi app_context để thao tác với DB
             with app.app_context():
                 new_log = ActionLog(username=user_action, commands=log_content)
                 db.session.add(new_log)
                 db.session.commit()
         
-        socketio.emit('execution_finished', {'status': 'done'})
+        socketio.emit('execution_finished', {'ok': ok}, room=sid)
 
     threading.Thread(target=run_wrapper).start()
 
 # --- WORKER SSH (CORE LOGIC ĐÃ SỬA) ---
-def run_ssh_task(node_name, commands, is_check_job):
+def run_ssh_task(node_name, commands, is_check_job, stop_ev, room):
     def log(msg, type='raw'):
-        socketio.emit('log', {'msg': msg, 'type': type, 'node': node_name})
+        socketio.emit('log', {'msg': msg, 'type': type, 'node': node_name}, room=room)
 
     def read_turbo(shell, timeout=1.0):
         """Đọc buffer tốc độ cao"""
         output = ""
         start = time.time()
         while time.time() - start < timeout:
-            if stop_event.is_set(): break
+            if stop_ev.is_set(): break
             try:
                 if shell.recv_ready():
                     while shell.recv_ready():
@@ -513,7 +564,7 @@ def run_ssh_task(node_name, commands, is_check_job):
         step_ctrl_d_sent = False
         
         while time.time() - start < timeout:
-            if stop_event.is_set(): break
+            if stop_ev.is_set(): break
             chunk = read_turbo(shell, 0.1)
             full_out += chunk
             
@@ -547,6 +598,7 @@ def run_ssh_task(node_name, commands, is_check_job):
         return False, full_out
 
     ssh = None
+    task_success = False
     try:
         cfg = SSH_CONFIG.get(node_name)
         log(f"--- KẾT NỐI {node_name} ---\n", 'info')
@@ -565,8 +617,11 @@ def run_ssh_task(node_name, commands, is_check_job):
         # === CHẾ ĐỘ CHECK ===
         if is_check_job:
             log("--- BẮT ĐẦU CHECK ---\n", 'info')
+            task_success = True
             for cmd in commands:
-                if stop_event.is_set(): break
+                if stop_ev.is_set():
+                    task_success = False
+                    break
                 ok, out = send_and_wait_prompt(shell, cmd, "<", 15)
                 b_match = re.search(r'B=([\d-]+)', cmd)
                 if b_match:
@@ -574,7 +629,9 @@ def run_ssh_task(node_name, commands, is_check_job):
                     socketio.emit('check_result_item', {
                         'node': node_name, 'b_num': b_match.group(1),
                         'status': parsed['status'], 'desc': parsed['desc']
-                    })
+                    }, room=room)
+                    if not ok or parsed['status'] == 'error':
+                        task_success = False
 
         # === CHẾ ĐỘ CONFIG (SỬA LOGIC ANBCI) ===
         else:
@@ -638,15 +695,19 @@ def run_ssh_task(node_name, commands, is_check_job):
                 send_and_wait_prompt(shell, "", "<", 5) # Dọn rác lần cuối
                 
                 # Chạy lệnh
+                commands_ok = True
                 for cmd in commands:
-                    if stop_event.is_set(): break
+                    if stop_ev.is_set():
+                        commands_ok = False
+                        break
                     ok_cmd, _ = smart_transaction_step(shell, cmd, timeout=20)
                     if not ok_cmd:
+                        commands_ok = False
                         log(f"❌ Lỗi khi gửi lệnh: {cmd}. DỪNG.\n", 'error')
                         break # Dừng ngay nếu lệnh con lỗi
                 
                 # ANBAI (2 bước)
-                if not stop_event.is_set():
+                if commands_ok and not stop_ev.is_set():
                     log("--- APPLY (ANBAI) ---\n", 'info')
                     if send_and_wait_prompt(shell, "ANBAI;", "<", 15)[0]:
                         log("  >>> Nhận prompt <. Gửi Confirm (;)...\n", 'cmd')
@@ -655,13 +716,19 @@ def run_ssh_task(node_name, commands, is_check_job):
                         # Chờ EXECUTED cho bước confirm
                         ok_final, out_final = smart_transaction_step(shell, "", timeout=30) # Lệnh rỗng vì đã gửi ;
                         if ok_final or "COMMAND EXECUTED" in out_final: # Check lỏng hơn chút ở bước cuối
-                             log("✅ ANBAI THÀNH CÔNG.\n", 'success')
+                            task_success = True
+                            log("✅ ANBAI THÀNH CÔNG.\n", 'success')
                         else:
-                             log(f"❌ ANBAI Confirm lỗi: {out_final}\n", 'error')
+                            log(f"❌ ANBAI Confirm lỗi: {out_final}\n", 'error')
                     else:
                         log("❌ ANBAI (Bước 1) lỗi: Không thấy prompt <\n", 'error')
+                elif not stop_ev.is_set():
+                    log("❌ Không APPLY vì có lệnh cấu hình thất bại.\n", 'error')
 
-        log(f"✅ Kết thúc phiên {node_name}.\n", 'success')
+        if task_success:
+            log(f"✅ Kết thúc thành công phiên {node_name}.\n", 'success')
+        else:
+            log(f"❌ Phiên {node_name} kết thúc nhưng chưa thành công.\n", 'error')
 
     except Exception as e:
         log(f"❌ LỖI HỆ THỐNG: {e}\n", 'error')
@@ -669,7 +736,9 @@ def run_ssh_task(node_name, commands, is_check_job):
         if ssh: 
             try: shell.send("exit;\n"); ssh.close()
             except: pass
-        socketio.emit('task_finished')
+        socketio.emit('task_finished', {'ok': task_success, 'node': node_name}, room=room)
+
+    return task_success
 
 # =====================================================================
 # ===           TÍNH NĂNG ỨNG CỨU 11x (UCTT) - PORT TỪ DESKTOP      ===
@@ -748,15 +817,15 @@ def _decide_uctt_actions(op_state, nop_state, rc_raw):
     return {'changeover': changeover, 'fallback': fallback}
 
 # --- 2. HELPER SSH CHO UCTT (port read_shell_output / send_and_wait / ...) ---
-def _uctt_log(node_name, msg, log_type='raw'):
-    socketio.emit('log', {'msg': msg, 'type': log_type, 'node': node_name})
+def _uctt_log(node_name, msg, log_type, room):
+    socketio.emit('log', {'msg': msg, 'type': log_type, 'node': node_name}, room=room)
 
-def _uctt_read(shell, node_name, timeout=2):
+def _uctt_read(shell, node_name, stop_ev, room, timeout=2):
     """Đọc buffer tốc độ cao (port read_shell_output)."""
     output = ""
     start = time.time()
     while True:
-        if stop_event.is_set(): break
+        if stop_ev.is_set(): break
         if time.time() - start > timeout: break
         try:
             if shell.recv_ready():
@@ -771,9 +840,9 @@ def _uctt_read(shell, node_name, timeout=2):
             break
     return output
 
-def _uctt_send_and_wait(shell, node_name, cmd, wait_for, timeout=10):
+def _uctt_send_and_wait(shell, node_name, cmd, wait_for, stop_ev, room, timeout=10):
     """Gửi lệnh, chờ thấy wait_for (port send_and_wait). Trả True/False."""
-    if stop_event.is_set(): raise Exception("Người dùng yêu cầu dừng.")
+    if stop_ev.is_set(): raise Exception("Người dùng yêu cầu dừng.")
     try:
         shell.send(cmd + "\n")
     except Exception:
@@ -783,47 +852,47 @@ def _uctt_send_and_wait(shell, node_name, cmd, wait_for, timeout=10):
     output = ""
     start = time.time()
     while time.time() - start < timeout:
-        if stop_event.is_set(): raise Exception("Người dùng yêu cầu dừng.")
-        new_output = _uctt_read(shell, node_name, timeout=0.05)
+        if stop_ev.is_set(): raise Exception("Người dùng yêu cầu dừng.")
+        new_output = _uctt_read(shell, node_name, stop_ev, room, timeout=0.05)
         if new_output:
             if new_output.strip():
-                _uctt_log(node_name, f"RECV: {new_output.strip()}\n", 'raw')
+                _uctt_log(node_name, f"RECV: {new_output.strip()}\n", 'raw', room)
             output += new_output
             if wait_for in output:
                 return True
             fail_conditions = ["NOT ACCEPTED", "SYNTAX ERROR", "FUNCTION BUSY", "FAULT CODE", "Command not found"]
             if any(err in output for err in fail_conditions):
-                _uctt_log(node_name, f"❌ Thiết bị từ chối lệnh: {cmd}\n", 'error')
+                _uctt_log(node_name, f"❌ Thiết bị từ chối lệnh: {cmd}\n", 'error', room)
                 return False
-    _uctt_log(node_name, f"⚠️ HẾT GIỜ: Không thấy '{wait_for}' sau khi gửi '{cmd}'\n", 'error')
+    _uctt_log(node_name, f"⚠️ HẾT GIỜ: Không thấy '{wait_for}' sau khi gửi '{cmd}'\n", 'error', room)
     return False
 
-def _uctt_read_until(shell, node_name, end_markers, timeout=15):
+def _uctt_read_until(shell, node_name, end_markers, stop_ev, room, timeout=15):
     """Đọc output tới khi thấy 1 trong end_markers (port _read_until_prompt_or_end)."""
     output = ""
     start = time.time()
     while time.time() - start < timeout:
-        if stop_event.is_set(): break
-        new_output = _uctt_read(shell, node_name, timeout=0.5)
+        if stop_ev.is_set(): break
+        new_output = _uctt_read(shell, node_name, stop_ev, room, timeout=0.5)
         if new_output:
             if new_output.strip():
-                _uctt_log(node_name, new_output, 'raw')
+                _uctt_log(node_name, new_output, 'raw', room)
             output += new_output
             if any(marker in output for marker in end_markers):
                 break
         time.sleep(0.1)
     return output
 
-def _uctt_send_confirm(shell, node_name, confirm_cmd, wait_for_list, timeout=15):
+def _uctt_send_confirm(shell, node_name, confirm_cmd, wait_for_list, stop_ev, room, timeout=15):
     """Gửi lệnh xác nhận (;) và chờ một trong wait_for_list (port _send_confirm_and_wait_anr)."""
-    if stop_event.is_set(): raise Exception("Người dùng yêu cầu dừng.")
+    if stop_ev.is_set(): raise Exception("Người dùng yêu cầu dừng.")
 
     time.sleep(0.3)
-    junk = _uctt_read(shell, node_name, timeout=1.0)
+    junk = _uctt_read(shell, node_name, stop_ev, room, timeout=1.0)
     if junk.strip():
-        _uctt_log(node_name, junk, 'raw')
+        _uctt_log(node_name, junk, 'raw', room)
 
-    if stop_event.is_set(): raise Exception("Người dùng yêu cầu dừng.")
+    if stop_ev.is_set(): raise Exception("Người dùng yêu cầu dừng.")
     try:
         shell.send(confirm_cmd + "\n")
     except Exception:
@@ -834,34 +903,34 @@ def _uctt_send_confirm(shell, node_name, confirm_cmd, wait_for_list, timeout=15)
     start = time.time()
     found = False
     while time.time() - start < timeout:
-        if stop_event.is_set(): raise Exception("Người dùng yêu cầu dừng.")
-        new_output = _uctt_read(shell, node_name, timeout=1)
+        if stop_ev.is_set(): raise Exception("Người dùng yêu cầu dừng.")
+        new_output = _uctt_read(shell, node_name, stop_ev, room, timeout=1)
         if new_output:
-            _uctt_log(node_name, f"RECV (confirm): {new_output.strip()}\n", 'raw')
+            _uctt_log(node_name, f"RECV (confirm): {new_output.strip()}\n", 'raw', room)
             output += new_output
             for item in wait_for_list:
                 if item in output:
-                    _uctt_log(node_name, f"✓ Phát hiện xác nhận: '{item}'\n", 'success')
+                    _uctt_log(node_name, f"✓ Phát hiện xác nhận: '{item}'\n", 'success', room)
                     found = True
                     break
             if found: break
             if any(err in output for err in ["NOT ACCEPTED", "SYNTAX ERROR", "FUNCTION BUSY", "FAULT CODE"]):
-                _uctt_log(node_name, f"❌ Thiết bị từ chối confirm '{confirm_cmd.strip()}'\n", 'error')
+                _uctt_log(node_name, f"❌ Thiết bị từ chối confirm '{confirm_cmd.strip()}'\n", 'error', room)
                 return False
         time.sleep(0.2)
 
     time.sleep(0.3)
-    final_junk = _uctt_read(shell, node_name, timeout=1.5)
+    final_junk = _uctt_read(shell, node_name, stop_ev, room, timeout=1.5)
     if final_junk.strip():
-        _uctt_log(node_name, final_junk, 'raw')
+        _uctt_log(node_name, final_junk, 'raw', room)
 
     if not found:
-        _uctt_log(node_name, f"⚠️ HẾT GIỜ: Không thấy xác nhận {wait_for_list} sau '{confirm_cmd.strip()}'\n", 'error')
+        _uctt_log(node_name, f"⚠️ HẾT GIỜ: Không thấy xác nhận {wait_for_list} sau '{confirm_cmd.strip()}'\n", 'error', room)
         return False
     return True
 
 # --- 3. WORKER SSH (chạy trong thread) ---
-def run_uctt_check_task(node_name, rc_raw, results, lock):
+def run_uctt_check_task(node_name, rc_raw, results, lock, stop_ev, room):
     """Worker SSH: kiểm tra OP/NOP cho RC trên 1 node (port _get_uctt_status_from_node)."""
     cfg = SSH_CONFIG.get(node_name)
     rc_list = _get_rc_list_from_selection(rc_raw)
@@ -871,37 +940,37 @@ def run_uctt_check_task(node_name, rc_raw, results, lock):
     ssh = None
     shell = None
 
-    if stop_event.is_set():
+    if stop_ev.is_set():
         with lock: results[node_name] = Exception("Người dùng đã dừng.")
         return
 
     try:
-        _uctt_log(node_name, f"--- KẾT NỐI {node_name} ({cfg['host']}) ---\n", 'info')
+        _uctt_log(node_name, f"--- KẾT NỐI {node_name} ({cfg['host']}) ---\n", 'info', room)
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(cfg['host'], username=cfg['user'], password=cfg['pass'], timeout=10)
         shell = ssh.invoke_shell()
         time.sleep(1)
-        _uctt_read(shell, node_name, timeout=1)  # Dọn rác banner
+        _uctt_read(shell, node_name, stop_ev, room, timeout=1)  # Dọn rác banner
 
-        if not _uctt_send_and_wait(shell, node_name, "mml -a", "<", timeout=10):
+        if not _uctt_send_and_wait(shell, node_name, "mml -a", "<", stop_ev, room, timeout=10):
             raise Exception("Không vào được chế độ MML")
 
         node_results = {}
         for i, rc_item in enumerate(rc_list):
-            if stop_event.is_set(): raise Exception("Dừng bởi người dùng.")
+            if stop_ev.is_set(): raise Exception("Dừng bởi người dùng.")
 
-            _uctt_log(node_name, f"🔍 Kiểm tra OP (RC={rc_item})...\n", 'cmd')
+            _uctt_log(node_name, f"🔍 Kiểm tra OP (RC={rc_item})...\n", 'cmd', room)
             shell.send(check_op_cmds[i] + "\n")
-            op_output = _uctt_read_until(shell, node_name, ["<"], timeout=15)
+            op_output = _uctt_read_until(shell, node_name, ["<"], stop_ev, room, timeout=15)
 
             rc_result = {'op': 'normal', 'nop': 'empty'}
             if "CSCF" in op_output: rc_result['op'] = 'sip'
             elif "TSN" in op_output: rc_result['op'] = 'analog'
 
-            _uctt_log(node_name, f"🔍 Kiểm tra NOP (RC={rc_item})...\n", 'cmd')
+            _uctt_log(node_name, f"🔍 Kiểm tra NOP (RC={rc_item})...\n", 'cmd', room)
             shell.send(check_nop_cmds[i] + "\n")
-            nop_output = _uctt_read_until(shell, node_name, ["<"], timeout=15)
+            nop_output = _uctt_read_until(shell, node_name, ["<"], stop_ev, room, timeout=15)
 
             if "CSCF" in nop_output: rc_result['nop'] = 'sip'
             elif "TSN" in nop_output: rc_result['nop'] = 'analog'
@@ -909,12 +978,12 @@ def run_uctt_check_task(node_name, rc_raw, results, lock):
             node_results[rc_item] = rc_result
 
         first_result = node_results[rc_list[0]]
-        _uctt_log(node_name, f"✓ Hoàn tất kiểm tra. Kết quả: {first_result}\n", 'success')
+        _uctt_log(node_name, f"✓ Hoàn tất kiểm tra. Kết quả: {first_result}\n", 'success', room)
         with lock:
             results[node_name] = first_result
 
     except Exception as e:
-        _uctt_log(node_name, f"❌ LỖI KẾT NỐI/KIỂM TRA: {e}\n", 'error')
+        _uctt_log(node_name, f"❌ LỖI KẾT NỐI/KIỂM TRA: {e}\n", 'error', room)
         with lock:
             results[node_name] = e
     finally:
@@ -925,7 +994,7 @@ def run_uctt_check_task(node_name, rc_raw, results, lock):
             try: ssh.close()
             except Exception: pass
 
-def run_uctt_exec_task(node_name, commands, action, rc_raw, results, lock):
+def run_uctt_exec_task(node_name, commands, action, rc_raw, results, lock, stop_ev, room):
     """Worker SSH: thực thi bộ lệnh UCTT trên 1 node (port _run_uctt_execution_thread).
     QUAN TRỌNG: KHÔNG dùng transaction ANBLI. Vào MML rồi gửi thẳng lệnh ANR*."""
     cfg = SSH_CONFIG.get(node_name)
@@ -933,7 +1002,7 @@ def run_uctt_exec_task(node_name, commands, action, rc_raw, results, lock):
     shell = None
     success = False
     try:
-        _uctt_log(node_name, f"--- KẾT NỐI {node_name} ({cfg['host']}) ---\n", 'info')
+        _uctt_log(node_name, f"--- KẾT NỐI {node_name} ({cfg['host']}) ---\n", 'info', room)
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(cfg['host'], username=cfg['user'], password=cfg['pass'], timeout=10)
@@ -941,45 +1010,45 @@ def run_uctt_exec_task(node_name, commands, action, rc_raw, results, lock):
         time.sleep(1)
 
         # Dọn dẹp phiên cũ (nếu có)
-        _uctt_read(shell, node_name, timeout=1)
+        _uctt_read(shell, node_name, stop_ev, room, timeout=1)
         try:
-            shell.send("exit;\n"); time.sleep(0.5); _uctt_read(shell, node_name, timeout=1)
+            shell.send("exit;\n"); time.sleep(0.5); _uctt_read(shell, node_name, stop_ev, room, timeout=1)
         except Exception:
             pass
 
         # Vào chế độ MML
-        if not _uctt_send_and_wait(shell, node_name, "mml -a", "<", timeout=10):
+        if not _uctt_send_and_wait(shell, node_name, "mml -a", "<", stop_ev, room, timeout=10):
             raise Exception("Không vào được MML")
 
         # --- ĐÃ BỎ KHỐI ANBLI: gửi lệnh UCTT trực tiếp ---
         for i, cmd in enumerate(commands):
-            if stop_event.is_set(): raise Exception("Người dùng yêu cầu dừng.")
-            _uctt_log(node_name, f"➡️ Gửi lệnh UCTT {i+1}/{len(commands)}: {cmd}\n", 'cmd')
+            if stop_ev.is_set(): raise Exception("Người dùng yêu cầu dừng.")
+            _uctt_log(node_name, f"➡️ Gửi lệnh UCTT {i+1}/{len(commands)}: {cmd}\n", 'cmd', room)
 
             # Lệnh cần xác nhận 2 bước (ANRAI / ANRAR)
             if cmd.startswith("ANRAI") or cmd.startswith("ANRAR"):
-                _uctt_log(node_name, "  (Phát hiện ANRAI/ANRAR -> xác nhận 2 bước)\n", 'info')
+                _uctt_log(node_name, "  (Phát hiện ANRAI/ANRAR -> xác nhận 2 bước)\n", 'info', room)
                 # Bước 1: gửi lệnh chính, chờ prompt '<'
-                if not _uctt_send_and_wait(shell, node_name, cmd, "<", timeout=15):
+                if not _uctt_send_and_wait(shell, node_name, cmd, "<", stop_ev, room, timeout=15):
                     raise Exception(f"Lệnh {cmd} thất bại (GĐ1 không thấy '<')")
-                if stop_event.is_set(): raise Exception("Người dùng yêu cầu dừng.")
+                if stop_ev.is_set(): raise Exception("Người dùng yêu cầu dừng.")
                 # Bước 2: gửi ';' confirm
-                _uctt_log(node_name, "  Đã nhận '<'. Gửi confirm ';' (GĐ2)...\n", 'cmd')
-                if not _uctt_send_confirm(shell, node_name, ";", ["<", "EXECUTED", "COMMAND EXECUTED"], timeout=15):
+                _uctt_log(node_name, "  Đã nhận '<'. Gửi confirm ';' (GĐ2)...\n", 'cmd', room)
+                if not _uctt_send_confirm(shell, node_name, ";", ["<", "EXECUTED", "COMMAND EXECUTED"], stop_ev, room, timeout=15):
                     raise Exception(f"Lệnh {cmd} thất bại (GĐ2 không xác nhận)")
             # Lệnh cấu hình thường (ANRPI, ANRSI, ANRPE...)
             else:
-                if not _uctt_send_and_wait(shell, node_name, cmd, "EXECUTED", timeout=15):
+                if not _uctt_send_and_wait(shell, node_name, cmd, "EXECUTED", stop_ev, room, timeout=15):
                     raise Exception(f"Lệnh UCTT thất bại: {cmd} (Không thấy EXECUTED)")
                 # Làm mới buffer sau mỗi lệnh
-                if not _uctt_send_and_wait(shell, node_name, "", "<", timeout=10):
-                    _uctt_log(node_name, f"⚠️ Không nhận được '<' sau lệnh {cmd}\n", 'error')
+                if not _uctt_send_and_wait(shell, node_name, "", "<", stop_ev, room, timeout=10):
+                    _uctt_log(node_name, f"⚠️ Không nhận được '<' sau lệnh {cmd}\n", 'error', room)
 
-        _uctt_log(node_name, f"✅ HOÀN TẤT thực thi '{action}' cho RC={rc_raw} trên {node_name}\n", 'success')
+        _uctt_log(node_name, f"✅ HOÀN TẤT thực thi '{action}' cho RC={rc_raw} trên {node_name}\n", 'success', room)
         success = True
 
     except Exception as e:
-        _uctt_log(node_name, f"❌ LỖI khi thực thi UCTT trên {node_name}: {e}\n", 'error')
+        _uctt_log(node_name, f"❌ LỖI khi thực thi UCTT trên {node_name}: {e}\n", 'error', room)
     finally:
         if shell:
             try: shell.send("exit;\n"); time.sleep(0.5); shell.close()
@@ -992,18 +1061,21 @@ def run_uctt_exec_task(node_name, commands, action, rc_raw, results, lock):
 
 # --- 4. SOCKET EVENTS ---
 @socketio.on('run_uctt_check')
+@socket_login_required
 def handle_uctt_check(data):
+    sid = request.sid
     rc_raw = data.get('rc', '113')
-    stop_event.clear()
-    socketio.emit('log_system', {'msg': f'🔄 Đang kiểm tra UCTT RC={rc_raw} trên 2C & 2D...', 'type': 'info'})
-    socketio.emit('uctt_busy', {'busy': True})
+    stop_ev = _get_task_stop(sid)
+    stop_ev.clear()
+    emit('log_system', {'msg': f'🔄 Đang kiểm tra UCTT RC={rc_raw} trên 2C & 2D...', 'type': 'info'})
+    emit('uctt_busy', {'busy': True})
 
     results = {}
     lock = threading.Lock()
 
     def run_wrapper():
-        t1 = threading.Thread(target=run_uctt_check_task, args=('TSSE2C', rc_raw, results, lock))
-        t2 = threading.Thread(target=run_uctt_check_task, args=('TSSE2D', rc_raw, results, lock))
+        t1 = threading.Thread(target=run_uctt_check_task, args=('TSSE2C', rc_raw, results, lock, stop_ev, sid))
+        t2 = threading.Thread(target=run_uctt_check_task, args=('TSSE2D', rc_raw, results, lock, stop_ev, sid))
         t1.start(); t2.start()
         t1.join(); t2.join()
 
@@ -1020,7 +1092,7 @@ def handle_uctt_check(data):
                 'status_text': f'RC={rc_raw}: Lỗi kết nối hoặc lệnh trên ít nhất 1 node.',
                 'status_color': 'danger',
                 'changeover': disabled, 'fallback': disabled_fb
-            })
+            }, room=sid)
             return
 
         # Không đồng bộ
@@ -1030,7 +1102,7 @@ def handle_uctt_check(data):
                 'status_text': f'RC={rc_raw}: ⚠️ KHÔNG ĐỒNG BỘ! (2C: {status_c}, 2D: {status_d}). Vui lòng kiểm tra tay!',
                 'status_color': 'danger',
                 'changeover': disabled, 'fallback': disabled_fb
-            })
+            }, room=sid)
             return
 
         # Đồng bộ -> quyết định nút
@@ -1050,19 +1122,21 @@ def handle_uctt_check(data):
             'fallback': actions['fallback'],
             'preview_changeover': preview_co,
             'preview_fallback': preview_fb,
-        })
+        }, room=sid)
 
     threading.Thread(target=run_wrapper).start()
 
 @socketio.on('execute_uctt')
+@socket_login_required
 def handle_uctt_execute(data):
+    sid = request.sid
     rc_raw = data.get('rc', '')
     action = data.get('action', '')
     valid_actions = ('uctt_2', 'uctt_1_analog', 'uctt_1_sip', 'fallback')
 
     if not rc_raw or action not in valid_actions:
-        socketio.emit('log_system', {'msg': '❌ Yêu cầu UCTT không hợp lệ.', 'type': 'error'})
-        socketio.emit('uctt_finished', {'ok': False})
+        emit('log_system', {'msg': '❌ Yêu cầu UCTT không hợp lệ.', 'type': 'error'})
+        emit('uctt_finished', {'ok': False})
         return
 
     try:
@@ -1070,40 +1144,41 @@ def handle_uctt_execute(data):
         cmd_sets = _generate_uctt_command_sets(rc_raw)
         commands = cmd_sets.get(action, [])
         if not commands:
-            socketio.emit('log_system', {'msg': '❌ Không sinh được lệnh UCTT.', 'type': 'error'})
-            socketio.emit('uctt_finished', {'ok': False})
+            emit('log_system', {'msg': '❌ Không sinh được lệnh UCTT.', 'type': 'error'})
+            emit('uctt_finished', {'ok': False})
             return
 
         # Lấy user TRƯỚC khi vào thread (thread phụ không có request context)
         user_action = get_action_username(current_user)
-        stop_event.clear()
-        socketio.emit('log_system', {'msg': f'🚨 Bắt đầu thực thi UCTT [{action}] RC={rc_raw}...', 'type': 'info'})
+        stop_ev = _get_task_stop(sid)
+        stop_ev.clear()
+        emit('log_system', {'msg': f'🚨 Bắt đầu thực thi UCTT [{action}] RC={rc_raw}...', 'type': 'info'})
 
         results = {}
         lock = threading.Lock()
 
         def run_wrapper():
-            t1 = threading.Thread(target=run_uctt_exec_task, args=('TSSE2C', commands, action, rc_raw, results, lock))
-            t2 = threading.Thread(target=run_uctt_exec_task, args=('TSSE2D', commands, action, rc_raw, results, lock))
+            t1 = threading.Thread(target=run_uctt_exec_task, args=('TSSE2C', commands, action, rc_raw, results, lock, stop_ev, sid))
+            t2 = threading.Thread(target=run_uctt_exec_task, args=('TSSE2D', commands, action, rc_raw, results, lock, stop_ev, sid))
             t1.start(); t2.start()
             t1.join(); t2.join()
 
-            ok = bool(results.get('TSSE2C')) and bool(results.get('TSSE2D'))
+            ok = bool(results.get('TSSE2C')) and bool(results.get('TSSE2D')) and not stop_ev.is_set()
 
-            # Chỉ ghi audit log nếu KHÔNG bị bấm Dừng (giống mẫu config)
-            if not stop_event.is_set():
+            # Chỉ ghi audit log nếu cả hai node thực thi thành công.
+            if ok:
                 with app.app_context():
                     log_content = f"[UCTT {action}] RC={rc_raw}\n" + "\n".join(commands)
                     new_log = ActionLog(username=user_action, commands=log_content)
                     db.session.add(new_log)
                     db.session.commit()
 
-            socketio.emit('uctt_finished', {'ok': ok, 'rc': rc_raw, 'action': action})
+            socketio.emit('uctt_finished', {'ok': ok, 'rc': rc_raw, 'action': action}, room=sid)
 
         threading.Thread(target=run_wrapper).start()
     except Exception as e:
-        socketio.emit('log_system', {'msg': f'❌ Lỗi xử lý yêu cầu UCTT: {e}', 'type': 'error'})
-        socketio.emit('uctt_finished', {'ok': False})
+        emit('log_system', {'msg': f'❌ Lỗi xử lý yêu cầu UCTT: {e}', 'type': 'error'})
+        emit('uctt_finished', {'ok': False})
 
 # --- 5. ROUTE TRANG UCTT ---
 @app.route('/uctt')
@@ -1453,6 +1528,7 @@ def run_a2p_exec_task(sid, stop_ev, commands, final_add, final_del, user_action,
 
 # --- 5. SOCKET EVENTS ---
 @socketio.on('a2p_init')
+@socket_login_required
 def handle_a2p_init():
     """Khi mở trang A2P: trả danh sách đã biết (cache DB) + thời điểm quét gần nhất.
     Client tự quét lại nếu dữ liệu cũ/chưa từng quét (giống desktop mở tab lần đầu)."""
@@ -1470,6 +1546,7 @@ def handle_a2p_init():
     })
 
 @socketio.on('run_a2p_fetch')
+@socket_login_required
 def handle_a2p_fetch():
     sid = request.sid
     stop_ev = _a2p_get_stop(sid)
@@ -1478,6 +1555,7 @@ def handle_a2p_fetch():
     socketio.start_background_task(run_a2p_fetch_task, sid, stop_ev)
 
 @socketio.on('run_a2p_analyze')
+@socket_login_required
 def handle_a2p_analyze(data):
     add = _a2p_parse_input(data.get('add_text', ''))
     dele = _a2p_parse_input(data.get('del_text', ''))
@@ -1500,6 +1578,7 @@ def handle_a2p_analyze(data):
     })
 
 @socketio.on('execute_a2p')
+@socket_login_required
 def handle_a2p_execute(data):
     sid = request.sid
     stop_ev = _a2p_get_stop(sid)
@@ -1534,6 +1613,7 @@ def handle_a2p_execute(data):
     socketio.start_background_task(run_wrapper)
 
 @socketio.on('stop_a2p')
+@socket_login_required
 def handle_a2p_stop():
     """Nút DỪNG của A2P: chỉ set cờ dừng của ĐÚNG phiên gọi (không đụng tab/người khác)."""
     ev = a2p_stop_events.get(request.sid)
@@ -1544,6 +1624,8 @@ def handle_a2p_stop():
 @socketio.on('disconnect')
 def _a2p_cleanup_stop():
     a2p_stop_events.pop(request.sid, None)
+    with task_stop_lock:
+        task_stop_events.pop(request.sid, None)
 
 # --- 6. ROUTE TRANG A2P ---
 @app.route('/a2p')
@@ -1617,7 +1699,10 @@ if __name__ == '__main__':
             )
             db.session.add(default_user)
             db.session.commit()
-            print(">>> Đã tạo tài khoản mặc định: admin / admin123")
+            # ASCII-only để không crash trên Windows console dùng CP1252.
+            # Bản PyInstaller windowed có thể đặt sys.stdout=None.
+            if sys.stdout is not None:
+                print(">>> Default account created: admin / admin123")
 
     # debug=False + use_reloader=False: tránh Werkzeug reloader khởi động .exe hai lần khi đóng gói PyInstaller
     socketio.run(app, host='0.0.0.0', port=5000, debug=False, use_reloader=False, allow_unsafe_werkzeug=True)

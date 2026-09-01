@@ -595,6 +595,12 @@ Ví dụ:
             if (!isDelete && !isRoute) {
                 return { isValid: false, reason: "Cú pháp lệnh không đúng định dạng" };
             }
+            if (isRoute && cleanNum.startsWith('138')) {
+                var targetSite = commands[commands.length - 1].toLowerCase();
+                if (targetSite !== 'hcm' && targetSite !== 'hni') {
+                    return { isValid: false, reason: "Đầu 138 chỉ nhận hướng HCM hoặc HNI" };
+                }
+            }
         }
 
         return { isValid: true, cleanNum: cleanNum };
@@ -696,7 +702,11 @@ Ví dụ:
         document.getElementById("btnExecute").disabled = false;
         document.getElementById("btnStop").disabled = true;
         saveRouteTabState();
-        showAlert("Đã hoàn tất thực thi lệnh cấu hình trên các Node!", { title: "Thực thi hoàn tất", type: "success" });
+        if (data && data.ok) {
+            showAlert("Đã thực thi thành công lệnh cấu hình trên các Node!", { title: "Thực thi thành công", type: "success" });
+        } else {
+            showAlert("Thực thi chưa thành công trên ít nhất một Node. Vui lòng xem console và kiểm tra lại.", { title: "Thực thi thất bại", type: "error" });
+        }
     });
     
     socket.on('log_system', function(data) {
@@ -888,6 +898,11 @@ Ví dụ:
             var coreText = line.split('#')[0].trimEnd();
             if (!coreText.trim()) return line;
 
+            var syntaxResult = validateLineSyntax(coreText, allowFree);
+            if (!syntaxResult.isValid) {
+                return coreText + " # 🚫 Lỗi: " + syntaxResult.reason;
+            }
+
             var parts = coreText.trim().split(/\s+/);
             var rawNum = parts[0];       
             var commands = parts.slice(1); 
@@ -939,10 +954,14 @@ Ví dụ:
                 var res = syncCache[matchedKey];
                 var isFoundC = (res.C && res.C.status === 'found');
                 var isFoundD = (res.D && res.D.status === 'found');
+                var hasCheckError = !res.C || !res.D || res.C.status === 'error' || res.D.status === 'error';
                 var descC = (res.C && res.C.desc) ? res.C.desc : "";
                 var msg = "";
 
-                if (isDeleteCmd) {
+                if (hasCheckError) {
+                    msg = " # 🚫 Lỗi: Kiểm tra chưa thành công trên đủ 2 Node";
+                }
+                else if (isDeleteCmd) {
                     if (isFoundC && isFoundD) {
                         msg = " # ✅ OK (Sẵn sàng xóa)";
                     } else if (!isFoundC && !isFoundD) {
@@ -1114,12 +1133,21 @@ Ví dụ:
         saveRouteTabState();
     }
 
-    socket.on('check_finished', function() {
+    socket.on('check_finished', function(data) {
         if (isCheckingTask) {
             isCheckingTask = false;
             document.getElementById("btnCheck").disabled = false;
             document.getElementById("btnStop").disabled = true;
-            autoFilterAndGenerate();
+            if (data && data.ok) {
+                autoFilterAndGenerate();
+            } else {
+                document.getElementById("outputCommands").value = "# Kiểm tra chưa thành công trên đủ 2 Node. Không sinh lệnh cấu hình.";
+                document.getElementById("btnExecute").disabled = true;
+                showAlert("Kiểm tra thất bại hoặc bị dừng trên ít nhất một Node. Hệ thống không sinh lệnh cấu hình.", {
+                    title: "Kiểm tra chưa thành công",
+                    type: "error"
+                });
+            }
             saveRouteTabState();
         }
     });
