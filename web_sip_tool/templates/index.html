@@ -50,16 +50,20 @@
 
                 <div class="card-body">
                     <div class="input-editor-wrapper">
-                        <textarea id="inputRaw" class="code-textarea" rows="8" 
-                            onclick="syncHighlightFromInput()" 
-                            onkeyup="syncHighlightFromInput()"
-                            oninput="updateInputStats()"
-                            placeholder="Dán danh sách số hoặc lệnh cấu hình vào đây (Mỗi dòng 1 số)...
+                        <div class="rich-code-container">
+                            <div id="inputBackdrop" class="rich-code-backdrop" aria-hidden="true"></div>
+                            <textarea id="inputRaw" class="rich-code-textarea" rows="8" 
+                                onclick="syncHighlightFromInput()" 
+                                onkeyup="syncHighlightFromInput(); updateInputStats(); renderInputBackdrop();"
+                                oninput="updateInputStats(); renderInputBackdrop();"
+                                onscroll="syncEditorScroll()"
+                                placeholder="Dán danh sách số hoặc lệnh cấu hình vào đây (Mỗi dòng 1 số)...
 Ví dụ:
 2838xxxxxx route HCM/HNI/IMS
 1900xxxxxx route IMS
 91xxxxxxx  route HCM/HNI/IMS
 2838xxxxxx delete"></textarea>
+                        </div>
                         
                         <div class="input-footer-bar">
                             <div class="d-flex align-items-center gap-2">
@@ -264,6 +268,83 @@ Ví dụ:
     var syncCache = {};
     var isCheckingTask = false; 
 
+    // --- SYNTAX HIGHLIGHTING & RICH DUAL-LAYER EDITOR ---
+    function escapeHtml(text) {
+        return (text || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function syncEditorScroll() {
+        var ta = document.getElementById("inputRaw");
+        var bd = document.getElementById("inputBackdrop");
+        if (ta && bd) {
+            bd.scrollTop = ta.scrollTop;
+            bd.scrollLeft = ta.scrollLeft;
+        }
+    }
+
+    function renderInputBackdrop() {
+        var ta = document.getElementById("inputRaw");
+        var bd = document.getElementById("inputBackdrop");
+        if (!ta || !bd) return;
+
+        var text = ta.value;
+        if (!text) {
+            bd.innerHTML = "";
+            return;
+        }
+
+        var lines = text.split('\n');
+        var htmlLines = lines.map(function(line) {
+            if (!line) return '';
+            
+            var parts = line.split('#');
+            var codePart = parts[0];
+            var commentPart = parts.slice(1).join('#');
+
+            // Tokens cho mã lệnh
+            var tokens = codePart.split(/(\s+)/);
+            var formattedCode = tokens.map(function(t) {
+                if (!t || !t.trim()) return escapeHtml(t);
+                if (/^\d+$/.test(t)) return '<span class="tok-num">' + escapeHtml(t) + '</span>';
+                if (/^(route|to)$/i.test(t)) return '<span class="tok-kw">' + escapeHtml(t) + '</span>';
+                if (/^(hcm|hni|vims|ims)$/i.test(t)) return '<span class="tok-dest">' + escapeHtml(t) + '</span>';
+                if (/^(xoa|xóa|delete|huy)$/i.test(t)) return '<span class="tok-del">' + escapeHtml(t) + '</span>';
+                return '<span class="tok-bad">' + escapeHtml(t) + '</span>';
+            }).join('');
+
+            // Badge cho chú thích kết quả
+            var formattedComment = '';
+            if (parts.length > 1) {
+                var cTrim = commentPart.trim();
+                if (cTrim.includes('OK (Tạo mới)') || cTrim.includes('OK (Sẵn sàng')) {
+                    var cleanLabel = cTrim.replace(/[#✅✓\s]+/g, ' ').trim();
+                    formattedComment = ' <span class="tok-tag-ok">✓ ' + escapeHtml(cleanLabel) + '</span>';
+                } else if (cTrim.includes('OK (Sẽ chuyển') || cTrim.includes('OK (Chuyển')) {
+                    var cleanLabel = cTrim.replace(/[#🔄\s]+/g, ' ').trim();
+                    formattedComment = ' <span class="tok-tag-change">🔄 ' + escapeHtml(cleanLabel) + '</span>';
+                } else if (cTrim.includes('Trùng khớp') || cTrim.includes('đúng hướng')) {
+                    var cleanLabel = cTrim.replace(/[#⚠️\s]+/g, ' ').trim();
+                    formattedComment = ' <span class="tok-tag-match">✓ ' + escapeHtml(cleanLabel) + '</span>';
+                } else if (cTrim.includes('Lỗi') || cTrim.includes('Lệch')) {
+                    var cleanLabel = cTrim.replace(/[#🚫❗\s]+/g, ' ').trim();
+                    formattedComment = ' <span class="tok-tag-err">🚫 ' + escapeHtml(cleanLabel) + '</span>';
+                } else {
+                    formattedComment = ' <span class="tok-tag-gray"># ' + escapeHtml(cTrim) + '</span>';
+                }
+            }
+
+            return formattedCode + formattedComment;
+        });
+
+        bd.innerHTML = htmlLines.join('\n') + (text.endsWith('\n') ? '<br>' : '');
+        syncEditorScroll();
+    }
+
     // --- QUICK SAMPLE INSERTS ---
     var samplePresets = {
         fixed: "2838123456 route HCM\n2439876543 route HNI\n2839111222 route IMS",
@@ -281,6 +362,7 @@ Ví dụ:
             ta.value = val;
         }
         updateInputStats();
+        renderInputBackdrop();
     }
 
     function clearInput() {
@@ -294,6 +376,7 @@ Ví dụ:
                 document.getElementById("outputCommands").value = "";
                 document.getElementById("resBody").innerHTML = "";
                 updateInputStats();
+                renderInputBackdrop();
                 showToast("Đã xóa sạch ô nhập liệu", "info");
             }
         });
@@ -735,12 +818,13 @@ Ví dụ:
 
         inputEl.value = newLines.join('\n');
         updateInputStats();
+        renderInputBackdrop();
 
         // Cập nhật thanh Thống kê Tổng quan (Live Summary Bar)
         var cntCreate = 0, cntChange = 0, cntMatch = 0, cntInherit = 0, cntError = 0;
         newLines.forEach(function(line) {
-            if (line.includes("✅ OK (Tạo mới)") || line.includes("✅ OK (Sẵn sàng")) cntCreate++;
-            else if (line.includes("🔄 OK")) cntChange++;
+            if (line.includes("✅ OK (Tạo mới)") || line.includes("✅ OK (Sẵn sàng") || line.includes("OK (Tạo mới)")) cntCreate++;
+            else if (line.includes("🔄 OK") || line.includes("OK (Sẽ chuyển") || line.includes("OK (Chuyển")) cntChange++;
             else if (line.includes("⚠️ Trùng khớp") || line.includes("đúng hướng")) cntMatch++;
             else if (line.includes("🚫 Lỗi") || line.includes("❗ Lệch")) cntError++;
         });
@@ -778,6 +862,7 @@ Ví dụ:
         var inputEl = document.getElementById("inputRaw");
         inputEl.value = inputEl.value.split('\n').map(function(l) { return l.split('#')[0].trimEnd(); }).join('\n');
         updateInputStats();
+        renderInputBackdrop();
     }
 
     // --- ACTIONS ---
@@ -937,8 +1022,9 @@ Ví dụ:
         if (el) el.innerHTML = "";
     }
 
-    // Initialize count
+    // Initialize count & backdrop
     updateInputStats();
+    renderInputBackdrop();
 </script>
 </body>
 </html>
