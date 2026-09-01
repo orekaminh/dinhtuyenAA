@@ -244,6 +244,107 @@
     };
     var isBusy = false;
 
+    // --- SESSION STATE PERSISTENCE (LƯU & KHÔI PHỤC KHI CHUYỂN TAB) ---
+    var UCTT_STATE_KEY = 'snoc2_uctt_state';
+    var isRestoringUctt = false;
+
+    function saveUcttState() {
+        if (isRestoringUctt) return;
+        try {
+            var statusEl = document.getElementById("statusLabel");
+            var cmdEl = document.getElementById("cmdPreview");
+            var logCEl = document.getElementById("logC");
+            var logDEl = document.getElementById("logD");
+            var btnChange = document.getElementById("btnChangeover");
+            var btnFall = document.getElementById("btnFallback");
+            var sel = document.getElementById("rcSelect");
+
+            var state = {
+                rc: sel ? sel.value : "113",
+                proposed: proposed,
+                statusText: statusEl ? statusEl.innerHTML : "",
+                statusClass: statusEl ? statusEl.className : "",
+                statusStyle: statusEl ? statusEl.style.cssText : "",
+                cmdPreview: cmdEl ? cmdEl.textContent : "",
+                btnChangeoverDisabled: btnChange ? btnChange.disabled : true,
+                btnFallbackDisabled: btnFall ? btnFall.disabled : true,
+                logC: logCEl ? logCEl.innerHTML : "",
+                logD: logDEl ? logDEl.innerHTML : "",
+                timestamp: Date.now()
+            };
+            sessionStorage.setItem(UCTT_STATE_KEY, JSON.stringify(state));
+        } catch (e) {
+            console.warn("Could not save UCTT state:", e);
+        }
+    }
+
+    function restoreUcttState() {
+        try {
+            var saved = sessionStorage.getItem(UCTT_STATE_KEY);
+            if (!saved) return;
+            var state = JSON.parse(saved);
+            if (!state) return;
+
+            isRestoringUctt = true;
+
+            // 1. Restore RC Selection Card
+            if (state.rc) {
+                var sel = document.getElementById("rcSelect");
+                if (sel) sel.value = state.rc;
+                document.querySelectorAll('.rc-btn-item').forEach(function(c){ c.classList.remove('selected'); });
+                if (state.rc.indexOf('113') !== -1) { var el = document.getElementById('cardRC-113'); if (el) el.classList.add('selected'); }
+                else if (state.rc.indexOf('114') !== -1) { var el = document.getElementById('cardRC-114'); if (el) el.classList.add('selected'); }
+                else { var el = document.getElementById('cardRC-115'); if (el) el.classList.add('selected'); }
+            }
+
+            // 2. Restore proposed data
+            if (state.proposed) {
+                proposed = state.proposed;
+            }
+
+            // 3. Restore status label
+            if (state.statusText) {
+                var statusEl = document.getElementById("statusLabel");
+                if (statusEl) {
+                    statusEl.innerHTML = state.statusText;
+                    if (state.statusClass) statusEl.className = state.statusClass;
+                    if (state.statusStyle) statusEl.style.cssText = state.statusStyle;
+                }
+            }
+
+            // 4. Restore command preview
+            if (state.cmdPreview) {
+                var cmdEl = document.getElementById("cmdPreview");
+                if (cmdEl) cmdEl.textContent = state.cmdPreview;
+            }
+
+            // 5. Restore buttons
+            if (state.btnChangeoverDisabled !== undefined) {
+                var btnChange = document.getElementById("btnChangeover");
+                if (btnChange) btnChange.disabled = state.btnChangeoverDisabled;
+            }
+            if (state.btnFallbackDisabled !== undefined) {
+                var btnFall = document.getElementById("btnFallback");
+                if (btnFall) btnFall.disabled = state.btnFallbackDisabled;
+            }
+
+            // 6. Restore Console Logs
+            if (state.logC) {
+                var lC = document.getElementById("logC");
+                if (lC) lC.innerHTML = state.logC;
+            }
+            if (state.logD) {
+                var lD = document.getElementById("logD");
+                if (lD) lD.innerHTML = state.logD;
+            }
+
+            isRestoringUctt = false;
+        } catch (e) {
+            isRestoringUctt = false;
+            console.warn("Could not restore UCTT state:", e);
+        }
+    }
+
     function setRcCard(val) {
         if (isBusy) return;
         document.querySelectorAll('.rc-btn-item').forEach(function(c){ c.classList.remove('selected'); });
@@ -295,6 +396,7 @@
             span.className = "log-" + data.type + " log-line";
             targetLog.appendChild(span);
             targetLog.scrollTop = targetLog.scrollHeight;
+            saveUcttState();
         }
     });
 
@@ -309,11 +411,13 @@
                 el.scrollTop = el.scrollHeight;
             }
         });
+        saveUcttState();
     });
 
     function clearLog(type) {
         var el = document.getElementById(type === 'C' ? "logC" : "logD");
         if (el) el.innerHTML = "";
+        saveUcttState();
     }
 
     // --- TRẠNG THÁI NÚT ---
@@ -374,6 +478,7 @@
             changeover: { enabled: false, label: '', action: null, commands: [] },
             fallback: { enabled: false, label: '', action: null, commands: [] }
         };
+        saveUcttState();
     }
 
     // --- KIỂM TRA ---
@@ -391,6 +496,7 @@
         setBusy(true);
         setStatus("Trạng thái RC=" + rc + ": Đang kiểm tra 2C & 2D...", "primary");
         socket.emit('run_uctt_check', { rc: rc });
+        saveUcttState();
     }
 
     socket.on('uctt_check_result', function(data) {
@@ -423,6 +529,7 @@
         else if (data.fallback.enabled) preview = proposed.fallback.commands;
         document.getElementById("cmdPreview").textContent =
             preview.length ? preview.join('\n') : "# Không có hành động khả dụng (xem trạng thái ở trên).";
+        saveUcttState();
     });
 
     // --- THỰC THI ---
@@ -456,6 +563,7 @@
 
                     proposed.changeover = { enabled: false, label: '', action: null, commands: [] };
                     proposed.fallback = { enabled: false, label: '', action: null, commands: [] };
+                    saveUcttState();
                 }
             });
         } catch (err) {
@@ -472,6 +580,7 @@
             setStatus("Trạng thái RC=" + rc + ": ❌ Thực thi thất bại / đã dừng", "danger");
             showAlert("Thực thi UCTT thất bại hoặc bị dừng. Vui lòng xem console.", { title: "Thực thi thất bại", type: "error" });
         }
+        saveUcttState();
         setTimeout(runUcttCheck, 700);
     });
 
@@ -486,9 +595,14 @@
                 socket.emit('stop_task');
                 setStatus("Trạng thái: Đã gửi lệnh DỪNG... (chờ tiến trình đóng)", "danger");
                 showToast("Đã gửi tín hiệu dừng tiến trình", "warning");
+                saveUcttState();
             }
         });
     }
+
+    // Khôi phục trạng thái UCTT khi vào trang
+    restoreUcttState();
+    window.addEventListener('beforeunload', saveUcttState);
 </script>
 </body>
 </html>

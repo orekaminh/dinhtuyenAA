@@ -245,7 +245,7 @@ Ví dụ:
                 <div class="terminal-top-header">
                     <div class="terminal-title">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-                        <span>SSH CONSOLE TELEMETRY</span>
+                        <span>SSH CONSOLE ĐỊNH TUYẾN</span>
                     </div>
                     <div class="terminal-tabs">
                         <button type="button" class="term-tab-btn active" id="btnTermSplit" onclick="switchTermView('split')">Chia đôi (C+D)</button>
@@ -300,6 +300,128 @@ Ví dụ:
     var socket = io({ transports: ['websocket', 'polling'] });
     var syncCache = {};
     var isCheckingTask = false; 
+
+    // --- SESSION STATE PERSISTENCE (LƯU & KHÔI PHỤC KHI CHUYỂN TAB) ---
+    var STATE_KEY = 'snoc2_sip_route_state';
+    var isRestoringState = false;
+
+    function saveRouteTabState() {
+        if (isRestoringState) return;
+        try {
+            var inputEl = document.getElementById("inputRaw");
+            var allowFreeEl = document.getElementById("allowFreeInput");
+            var outCmdsEl = document.getElementById("outputCommands");
+            var targetRadio = document.querySelector('input[name="targetNode"]:checked');
+            var logCEl = document.getElementById("logC");
+            var logDEl = document.getElementById("logD");
+
+            var state = {
+                inputRaw: inputEl ? inputEl.value : "",
+                allowFreeInput: allowFreeEl ? allowFreeEl.checked : false,
+                syncCache: syncCache || {},
+                outputCommands: outCmdsEl ? outCmdsEl.value : "",
+                targetNode: targetRadio ? targetRadio.value : "BOTH",
+                logC: logCEl ? logCEl.innerHTML : "",
+                logD: logDEl ? logDEl.innerHTML : "",
+                isManualEdit: outCmdsEl ? !outCmdsEl.readOnly : false,
+                timestamp: Date.now()
+            };
+            sessionStorage.setItem(STATE_KEY, JSON.stringify(state));
+        } catch (e) {
+            console.warn("Could not save state to sessionStorage:", e);
+        }
+    }
+
+    function restoreRouteTabState() {
+        try {
+            var saved = sessionStorage.getItem(STATE_KEY);
+            if (!saved) return;
+            var state = JSON.parse(saved);
+            if (!state) return;
+
+            isRestoringState = true;
+
+            // 1. Khôi phục ô nhập liệu
+            if (state.inputRaw !== undefined) {
+                var ta = document.getElementById("inputRaw");
+                if (ta) ta.value = state.inputRaw;
+            }
+
+            // 2. Khôi phục tùy chọn nhập tự do
+            if (state.allowFreeInput !== undefined) {
+                var chk = document.getElementById("allowFreeInput");
+                if (chk) chk.checked = state.allowFreeInput;
+            }
+
+            // 3. Khôi phục Cache kiểm tra & Bảng kết quả Bước 2
+            if (state.syncCache && Object.keys(state.syncCache).length > 0) {
+                syncCache = state.syncCache;
+                var tbody = document.getElementById("resBody");
+                if (tbody) tbody.innerHTML = "";
+                Object.keys(syncCache).forEach(function(num) {
+                    updateResultTable(num);
+                });
+            }
+
+            // 4. Khôi phục Lệnh MML Bước 3
+            if (state.outputCommands) {
+                var outTa = document.getElementById("outputCommands");
+                if (outTa) {
+                    outTa.value = state.outputCommands;
+                    var validCmds = state.outputCommands.split('\n').filter(function(l){ return l.trim() && !l.trim().startsWith('#'); });
+                    var badge = document.getElementById("mmlCountBadge");
+                    if (badge && validCmds.length > 0) {
+                        badge.textContent = validCmds.length + " lệnh MML";
+                        badge.style.display = "inline-block";
+                    }
+                    var btnExec = document.getElementById("btnExecute");
+                    if (btnExec && validCmds.length > 0) {
+                        btnExec.disabled = false;
+                    }
+                }
+            }
+
+            // 4b. Khôi phục chế độ sửa tay nếu có
+            if (state.isManualEdit) {
+                var outTa = document.getElementById("outputCommands");
+                var btn = document.getElementById("btnToggleEditCmd");
+                var note = document.getElementById("editWarningNote");
+                if (outTa && btn) {
+                    outTa.readOnly = false;
+                    outTa.classList.add("manual-mode", "editing-warning");
+                    btn.textContent = "🔒 Khóa lại";
+                    btn.className = "btn-action-sm danger-lock";
+                    if (note) note.style.display = "flex";
+                }
+            }
+
+            // 5. Khôi phục Node Radio đã chọn
+            if (state.targetNode) {
+                var radioId = state.targetNode === 'TSSE2C' ? 'tgt2C' : (state.targetNode === 'TSSE2D' ? 'tgt2D' : 'tgtBoth');
+                selectTargetRadio(radioId);
+            }
+
+            // 6. Khôi phục Console Log
+            if (state.logC) {
+                var lC = document.getElementById("logC");
+                if (lC) lC.innerHTML = state.logC;
+            }
+            if (state.logD) {
+                var lD = document.getElementById("logD");
+                if (lD) lD.innerHTML = state.logD;
+            }
+
+            // 7. Cập nhật thống kê, tô màu syntax và banner
+            updateInputStats();
+            renderInputBackdrop();
+            updateInputAnnotations();
+
+            isRestoringState = false;
+        } catch (e) {
+            isRestoringState = false;
+            console.warn("Could not restore state from sessionStorage:", e);
+        }
+    }
 
     // --- SYNTAX HIGHLIGHTING & RICH DUAL-LAYER EDITOR ---
     function escapeHtml(text) {
@@ -396,6 +518,7 @@ Ví dụ:
         }
         updateInputStats();
         renderInputBackdrop();
+        saveRouteTabState();
     }
 
     function clearInput() {
@@ -408,6 +531,13 @@ Ví dụ:
                 document.getElementById("inputRaw").value = "";
                 document.getElementById("outputCommands").value = "";
                 document.getElementById("resBody").innerHTML = "";
+                syncCache = {};
+                var summaryBox = document.getElementById("checkSummaryBox");
+                if (summaryBox) summaryBox.style.display = "none";
+                var badge = document.getElementById("mmlCountBadge");
+                if (badge) badge.style.display = "none";
+                document.getElementById("btnExecute").disabled = true;
+                sessionStorage.removeItem(STATE_KEY);
                 updateInputStats();
                 renderInputBackdrop();
                 showToast("Đã xóa sạch ô nhập liệu", "info");
@@ -506,6 +636,7 @@ Ví dụ:
             radio.checked = true;
             radio.parentElement.classList.add('selected');
         }
+        saveRouteTabState();
     }
 
     // --- TERMINAL VIEW SWITCHER ---
@@ -556,6 +687,7 @@ Ví dụ:
             span.className = `log-${data.type} log-line`;
             targetLog.appendChild(span);
             targetLog.scrollTop = targetLog.scrollHeight;
+            saveRouteTabState();
         }
     });
     
@@ -563,6 +695,7 @@ Ví dụ:
     socket.on('execution_finished', function(data) {
         document.getElementById("btnExecute").disabled = false;
         document.getElementById("btnStop").disabled = true;
+        saveRouteTabState();
         showAlert("Đã hoàn tất thực thi lệnh cấu hình trên các Node!", { title: "Thực thi hoàn tất", type: "success" });
     });
     
@@ -577,6 +710,7 @@ Ví dụ:
                 el.scrollTop = el.scrollHeight;
             }
         });
+        saveRouteTabState();
     });
 
     // --- CHECK RESULTS LOGIC ---
@@ -588,6 +722,7 @@ Ví dụ:
         if (summaryBox) summaryBox.style.display = "none";
         var badge = document.getElementById("mmlCountBadge");
         if (badge) badge.style.display = "none";
+        saveRouteTabState();
     });
 
     socket.on('check_result_item', function(data) {
@@ -598,6 +733,7 @@ Ví dụ:
 
         updateResultTable(num);
         updateInputAnnotations();
+        saveRouteTabState();
     });
 
     function updateResultTable(b_num) {
@@ -908,6 +1044,7 @@ Ví dụ:
         btn.textContent = "🔓 Cho phép sửa tay";
         btn.className = "btn-action-sm warning-toggle";
         if (note) note.style.display = "none";
+        saveRouteTabState();
     }
 
     function toggleEditCommands() {
@@ -924,6 +1061,7 @@ Ví dụ:
         } else {
             resetEditState();
         }
+        saveRouteTabState();
     }
 
     socket.on('config_generated', function(data) {
@@ -940,6 +1078,7 @@ Ví dụ:
         }
         document.getElementById("btnExecute").disabled = (data.commands.startsWith("#") || !data.commands.trim());
         resetEditState();
+        saveRouteTabState();
     });
 
     function runCheckAutomation() {
@@ -972,6 +1111,7 @@ Ví dụ:
             input: content, 
             allow_free: document.getElementById("allowFreeInput").checked
         });
+        saveRouteTabState();
     }
 
     socket.on('check_finished', function() {
@@ -980,6 +1120,7 @@ Ví dụ:
             document.getElementById("btnCheck").disabled = false;
             document.getElementById("btnStop").disabled = true;
             autoFilterAndGenerate();
+            saveRouteTabState();
         }
     });
 
@@ -1005,6 +1146,7 @@ Ví dụ:
                 skip_errors: true 
             });
         }
+        saveRouteTabState();
     }
 
     function executeConfigSSH() {
@@ -1032,6 +1174,7 @@ Ví dụ:
                     raw_input: rawInp,
                     target_nodes: targets
                 });
+                saveRouteTabState();
             }
         });
 	}
@@ -1046,6 +1189,7 @@ Ví dụ:
                 socket.emit('stop_task');
                 document.getElementById("btnStop").disabled = true;
                 showToast("Đã gửi tín hiệu dừng tiến trình", "warning");
+                saveRouteTabState();
             }
         });
     }
@@ -1053,11 +1197,15 @@ Ví dụ:
     function clearLog(type) {
         var el = document.getElementById(type === 'C' ? "logC" : "logD");
         if (el) el.innerHTML = "";
+        saveRouteTabState();
     }
 
-    // Initialize count & backdrop
+    // Khởi tạo và Khôi phục trạng thái khi tải trang
+    restoreRouteTabState();
     updateInputStats();
     renderInputBackdrop();
+
+    window.addEventListener('beforeunload', saveRouteTabState);
 </script>
 </body>
 </html>

@@ -101,7 +101,7 @@
                         <span>1. Quét số ĐANG CHẶN</span>
                     </button>
                     
-                    <input type="text" id="search" class="code-textarea py-1 px-2 mb-1" style="height: 28px; font-size: 11px;" placeholder="🔍 Tìm nhanh số..." oninput="renderTable()">
+                    <input type="text" id="search" class="code-textarea py-1 px-2 mb-1" style="height: 28px; font-size: 11px;" placeholder="🔍 Tìm nhanh số..." oninput="renderTable(); saveA2pState();">
                     
                     <div class="text-muted d-flex align-items-center gap-1" style="font-size: 10.5px; margin-bottom: 3px;">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
@@ -161,14 +161,14 @@
                         <label class="fw-bold" style="font-size: 12px; color: #334155; margin-bottom: 2px; display: block;">
                             Nhập số cần CHẶN THÊM (mỗi dòng 1 số):
                         </label>
-                        <textarea id="addBox" class="code-textarea" rows="6" placeholder="Mỗi dòng 1 số. Tự cắt số 0 hoặc 84 ở đầu. VD: 012345 hoặc 8412345 → chặn 12345"></textarea>
+                        <textarea id="addBox" class="code-textarea" rows="6" oninput="saveA2pState()" placeholder="Mỗi dòng 1 số. Tự cắt số 0 hoặc 84 ở đầu. VD: 012345 hoặc 8412345 → chặn 12345"></textarea>
                     </div>
 
                     <div class="mt-2">
                         <label class="fw-bold" style="font-size: 12px; color: #b91c1c; margin-bottom: 2px; display: block;">
                             Nhập số cần GỠ CHẶN:
                         </label>
-                        <textarea id="delBox" class="code-textarea" rows="4" style="border-color: #fecaca; background: #fffafb;" placeholder="Chọn số bên trái → chuột phải → 'Gỡ chặn'; hoặc dán thủ công mỗi dòng 1 số. Tự cắt số 0 hoặc 84 ở đầu, chỉ gỡ số đang chặn..."></textarea>
+                        <textarea id="delBox" class="code-textarea" rows="4" style="border-color: #fecaca; background: #fffafb;" oninput="saveA2pState()" placeholder="Chọn số bên trái → chuột phải → 'Gỡ chặn'; hoặc dán thủ công mỗi dòng 1 số. Tự cắt số 0 hoặc 84 ở đầu, chỉ gỡ số đang chặn..."></textarea>
                     </div>
 
                     <button onclick="analyze()" id="btnAnalyze" class="btn-analyze my-2">
@@ -240,6 +240,118 @@
     var selectedNums = new Set();   // các số đang chọn trong bảng
     var anchorNum = null;           // neo cho Shift+Click
 
+    // --- SESSION STATE PERSISTENCE (LƯU & KHÔI PHỤC KHI CHUYỂN TAB) ---
+    var A2P_STATE_KEY = 'snoc2_a2p_state';
+    var isRestoringA2p = false;
+
+    function saveA2pState() {
+        if (isRestoringA2p) return;
+        try {
+            var addBox = document.getElementById('addBox');
+            var delBox = document.getElementById('delBox');
+            var searchBox = document.getElementById('search');
+            var reportEl = document.getElementById('report');
+            var btnExec = document.getElementById('btnExecute');
+            var logA = document.getElementById('logA');
+
+            var state = {
+                addBox: addBox ? addBox.value : '',
+                delBox: delBox ? delBox.value : '',
+                search: searchBox ? searchBox.value : '',
+                reportText: reportEl ? reportEl.textContent : '',
+                reportClass: reportEl ? reportEl.className : '',
+                reportStyle: reportEl ? reportEl.style.cssText : '',
+                btnExecuteDisabled: btnExec ? btnExec.disabled : true,
+                planAdd: planAdd || [],
+                planDel: planDel || [],
+                allRows: allRows || [],
+                lastAdded: lastAdded || [],
+                logA: logA ? logA.innerHTML : '',
+                isFresh: isFresh,
+                lastScanTime: lastScanTime,
+                timestamp: Date.now()
+            };
+            sessionStorage.setItem(A2P_STATE_KEY, JSON.stringify(state));
+        } catch (e) {
+            console.warn("Could not save A2P state:", e);
+        }
+    }
+
+    function restoreA2pState() {
+        try {
+            var saved = sessionStorage.getItem(A2P_STATE_KEY);
+            if (!saved) return;
+            var state = JSON.parse(saved);
+            if (!state) return;
+
+            isRestoringA2p = true;
+
+            // 1. Khôi phục ô nhập liệu
+            if (state.addBox !== undefined) {
+                var addBox = document.getElementById('addBox');
+                if (addBox) addBox.value = state.addBox;
+            }
+            if (state.delBox !== undefined) {
+                var delBox = document.getElementById('delBox');
+                if (delBox) delBox.value = state.delBox;
+            }
+            if (state.search !== undefined) {
+                var searchBox = document.getElementById('search');
+                if (searchBox) searchBox.value = state.search;
+            }
+
+            // 2. Khôi phục danh sách & kế hoạch
+            if (state.planAdd) planAdd = state.planAdd;
+            if (state.planDel) planDel = state.planDel;
+            if (state.lastAdded) lastAdded = state.lastAdded;
+            if (state.allRows && state.allRows.length > 0) {
+                allRows = state.allRows;
+                renderTable();
+            }
+
+            // 3. Khôi phục ô trạng thái & báo cáo
+            if (state.reportText) {
+                var reportEl = document.getElementById('report');
+                if (reportEl) {
+                    reportEl.textContent = state.reportText;
+                    if (state.reportClass) reportEl.className = state.reportClass;
+                    if (state.reportStyle) reportEl.style.cssText = state.reportStyle;
+                }
+            }
+
+            // 4. Khôi phục nút Thực thi
+            if (state.btnExecuteDisabled !== undefined) {
+                var btnExec = document.getElementById('btnExecute');
+                if (btnExec) btnExec.disabled = state.btnExecuteDisabled;
+            }
+
+            // 5. Khôi phục SSH Console Log
+            if (state.logA) {
+                var logA = document.getElementById('logA');
+                if (logA) logA.innerHTML = state.logA;
+            }
+
+            // 6. Khôi phục Freshness & Header
+            if (state.lastScanTime) {
+                lastScanTime = state.lastScanTime;
+                var h = document.getElementById('freshHeader');
+                if (h) {
+                    h.textContent = state.isFresh ? ('✅ Dữ liệu thực (Cập nhật: ' + lastScanTime + ')') : ('⚠️ Dữ liệu đã cũ (Lần cuối: ' + lastScanTime + ') — Hãy Quét lại');
+                    h.style.color = state.isFresh ? '#15803d' : '#dc2626';
+                }
+                var lbl = document.getElementById('countLabel');
+                if (lbl && state.allRows) {
+                    lbl.textContent = '📊 ' + state.allRows.length + ' số đang chặn.';
+                }
+            }
+
+            isRestoringA2p = false;
+        } catch (e) {
+            isRestoringA2p = false;
+            console.warn("Could not restore A2P state:", e);
+        }
+    }
+
     // --- LOG ---
     socket.on('log', function(data) {
         if (data.node !== 'TSSN2D') return;
@@ -250,6 +362,7 @@
             span.className = 'log-' + data.type + ' log-line';
             el.appendChild(span);
             el.scrollTop = el.scrollHeight;
+            saveA2pState();
         }
     });
 
@@ -261,10 +374,14 @@
             div.className = 'log-system log-line';
             el.appendChild(div); 
             el.scrollTop = el.scrollHeight;
+            saveA2pState();
         }
     });
 
-    function clearLog() { document.getElementById('logA').innerHTML = ''; }
+    function clearLog() { 
+        document.getElementById('logA').innerHTML = ''; 
+        saveA2pState();
+    }
 
     function setBusy(b) {
         isBusy = b;
@@ -278,6 +395,7 @@
             r.textContent = 'Đang chạy...';
             r.className = 'status-alert-box mb-2';
         }
+        saveA2pState();
     }
 
     // --- FRESHNESS ---
@@ -289,6 +407,7 @@
         h.style.color = '#15803d';
         if (freshTimer) clearTimeout(freshTimer);
         freshTimer = setTimeout(markStale, 180000); // 3 phút
+        saveA2pState();
     }
 
     function markStale() {
@@ -297,6 +416,7 @@
         h.textContent = '⚠️ Dữ liệu đã cũ' + (lastScanTime ? ' (Lần cuối: ' + lastScanTime + ')' : '') + ' — Hãy Quét lại';
         h.style.color = '#dc2626';
         blinkWarning(6);
+        saveA2pState();
     }
 
     function blinkWarning(count) {
@@ -307,7 +427,13 @@
     }
 
     // --- KHI MỞ TRANG: tự quét lần đầu / cảnh báo dữ liệu cũ ---
-    socket.on('connect', function() { socket.emit('a2p_init'); });
+    socket.on('connect', function() { 
+        var saved = sessionStorage.getItem(A2P_STATE_KEY);
+        if (!saved) {
+            socket.emit('a2p_init'); 
+        }
+    });
+
     socket.on('a2p_state', function(data) {
         allRows = data.rows || [];
         renderTable();
@@ -327,6 +453,7 @@
                 : 'Chưa có dữ liệu — đang quét...';
             fetchData();
         }
+        saveA2pState();
     });
 
     // --- FETCH ---
@@ -336,6 +463,7 @@
         setBusy(true);
         document.getElementById('countLabel').textContent = 'Đang quét...';
         socket.emit('run_a2p_fetch');
+        saveA2pState();
     }
 
     socket.on('a2p_blocklist', function(data) {
@@ -347,10 +475,12 @@
         renderTable();
         document.getElementById('countLabel').textContent = '📊 ' + data.count + ' số đang chặn.';
         markFresh();
+        saveA2pState();
     });
 
     socket.on('a2p_fetch_finished', function() {
         setBusy(false);
+        saveA2pState();
     });
 
     // --- RENDER TABLE + SEARCH ---
@@ -419,6 +549,7 @@
         if (lines.indexOf(num) === -1) {
             lines.push(num);
             box.value = lines.join('\n');
+            saveA2pState();
         }
     }
 
@@ -441,6 +572,7 @@
         del.value = existing.join('\n');
         a2pAppendLog('Đã thêm ' + added + ' số vào ô GỠ.');
         hideCtxMenu();
+        saveA2pState();
     };
 
     function a2pAppendLog(msg) {
@@ -451,6 +583,7 @@
             div.className = 'log-info log-line';
             el.appendChild(div); 
             el.scrollTop = el.scrollHeight;
+            saveA2pState();
         }
     }
 
@@ -482,6 +615,7 @@
             add_text: document.getElementById('addBox').value,
             del_text: document.getElementById('delBox').value
         });
+        saveA2pState();
     }
 
     socket.on('a2p_plan', function(data) {
@@ -505,6 +639,7 @@
                     reportEl.className = 'status-alert-box mb-2';
                     planAdd = []; planDel = [];
                     document.getElementById('btnExecute').disabled = true;
+                    saveA2pState();
                 }
             });
             return;
@@ -524,6 +659,7 @@
             reportEl.style.borderColor = '#a7f3d0';
             reportEl.style.color = '#065f46';
             document.getElementById('btnExecute').disabled = true;
+            saveA2pState();
             return;
         }
 
@@ -532,6 +668,7 @@
             reportEl.textContent = (data.report ? data.report + '\n\n' : '') + '✅ Không có lệnh mới cần chạy.';
             reportEl.className = 'status-alert-box mb-2';
             document.getElementById('btnExecute').disabled = true;
+            saveA2pState();
             return;
         }
         reportEl.textContent = (data.report || '') + '\n\n📋 Tổng ' + (data.commands ? data.commands.length : 0) + ' lệnh sẽ chạy.';
@@ -540,6 +677,7 @@
         reportEl.style.borderColor = '#bae6fd';
         reportEl.style.color = '#0369a1';
         document.getElementById('btnExecute').disabled = false;
+        saveA2pState();
     }
 
     // --- EXECUTE ---
@@ -560,6 +698,7 @@
                 setBusy(true);
                 document.getElementById('report').textContent = 'Đang thực thi...';
                 socket.emit('execute_a2p', { final_add: planAdd, final_del: planDel });
+                saveA2pState();
             }
         });
     }
@@ -574,6 +713,7 @@
             document.getElementById('delBox').value = '';
             document.getElementById('search').value = '';
             planAdd = []; planDel = []; selectedNums = new Set(); anchorNum = null;
+            sessionStorage.removeItem(A2P_STATE_KEY);
             fetchData();
         } else {
             showAlert('Thực thi thất bại hoặc bị dừng. Vui lòng xem console.', {
@@ -582,6 +722,7 @@
             });
             setBusy(false);
             document.getElementById('btnExecute').disabled = false;
+            saveA2pState();
         }
     });
 
@@ -594,9 +735,14 @@
             onOk: function() {
                 socket.emit('stop_a2p');
                 showToast('Đã gửi tín hiệu dừng tác vụ', 'warning');
+                saveA2pState();
             }
         });
     }
+
+    // Khôi phục trạng thái A2P khi mở tab
+    restoreA2pState();
+    window.addEventListener('beforeunload', saveA2pState);
 </script>
 </body>
 </html>
