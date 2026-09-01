@@ -183,7 +183,7 @@
                 <div class="terminal-top-header">
                     <div class="terminal-title">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-                        <span>SSH CONSOLE ỨNG CỨU 11X</span>
+                        <span id='ucttConsoleTitle'>SSH CONSOLE ỨNG CỨU RC 113</span>
                     </div>
                     <div class="terminal-tabs">
                         <button type="button" class="term-tab-btn active" id="btnTermSplit" onclick="switchTermView('split')">Chia đôi (C+D)</button>
@@ -237,143 +237,163 @@
 <script>
     var socket = io({ transports: ['websocket', 'polling'] });
 
-    var proposed = {
-        rc: null,
-        changeover: { enabled: false, label: '', action: null, commands: [] },
-        fallback: { enabled: false, label: '', action: null, commands: [] }
-    };
+    function emptyProposed() {
+        return {
+            rc: null,
+            changeover: { enabled: false, label: '', action: null, commands: [] },
+            fallback: { enabled: false, label: '', action: null, commands: [] }
+        };
+    }
+
+    var proposed = emptyProposed();
     var isBusy = false;
 
-    // --- SESSION STATE PERSISTENCE (LƯU & KHÔI PHỤC KHI CHUYỂN TAB) ---
+    // --- STATE RIÊNG CHO RC113 / RC114 / RC115 ---
     var UCTT_STATE_KEY = 'snoc2_uctt_state';
     var isRestoringUctt = false;
+    var currentTermView = 'split';
+    var ucttStates = {};
+    var activeRc = '113';
+
+    function rcDisplayName(rc) {
+        if ((rc || '').indexOf('113') === 0) return '113';
+        if ((rc || '').indexOf('114') === 0) return '114';
+        return '115';
+    }
+
+    function getSelectedRc() {
+        var sel = document.getElementById('rcSelect');
+        return sel ? sel.value : '113';
+    }
+
+    function newRcState(rc) {
+        return {
+            proposed: emptyProposed(),
+            statusText: 'Trạng thái RC=' + rc + ': Chưa kiểm tra',
+            statusColor: 'secondary',
+            cmdPreview: '# Lệnh sẽ hiển thị tại đây sau khi KIỂM TRA xong...',
+            btnChangeoverText: '🔀 Chuyển đổi...',
+            btnChangeoverDisabled: true,
+            btnFallbackText: '↩️ Fallback (Không khả dụng)',
+            btnFallbackDisabled: true,
+            logC: '',
+            logD: '',
+            termView: 'split'
+        };
+    }
+
+    function getRcState(rc) {
+        if (!ucttStates[rc]) ucttStates[rc] = newRcState(rc);
+        return ucttStates[rc];
+    }
+
+    function cloneValue(value) {
+        return JSON.parse(JSON.stringify(value));
+    }
+
+    function captureCurrentRcState() {
+        var state = getRcState(activeRc);
+        var statusEl = document.getElementById('statusLabel');
+        var btnChange = document.getElementById('btnChangeover');
+        var btnFall = document.getElementById('btnFallback');
+        state.proposed = cloneValue(proposed);
+        state.statusText = statusEl.textContent;
+        state.statusColor = statusEl.dataset.statusColor || 'secondary';
+        state.cmdPreview = document.getElementById('cmdPreview').textContent;
+        state.btnChangeoverText = btnChange.textContent;
+        state.btnChangeoverDisabled = btnChange.disabled;
+        state.btnFallbackText = btnFall.textContent;
+        state.btnFallbackDisabled = btnFall.disabled;
+        state.logC = document.getElementById('logC').innerHTML;
+        state.logD = document.getElementById('logD').innerHTML;
+        state.termView = currentTermView;
+    }
 
     function saveUcttState() {
         if (isRestoringUctt) return;
         try {
-            var statusEl = document.getElementById("statusLabel");
-            var cmdEl = document.getElementById("cmdPreview");
-            var logCEl = document.getElementById("logC");
-            var logDEl = document.getElementById("logD");
-            var btnChange = document.getElementById("btnChangeover");
-            var btnFall = document.getElementById("btnFallback");
-            var sel = document.getElementById("rcSelect");
-
-            var state = {
-                rc: sel ? sel.value : "113",
-                proposed: proposed,
-                statusText: statusEl ? statusEl.innerHTML : "",
-                statusClass: statusEl ? statusEl.className : "",
-                statusStyle: statusEl ? statusEl.style.cssText : "",
-                cmdPreview: cmdEl ? cmdEl.textContent : "",
-                btnChangeoverDisabled: btnChange ? btnChange.disabled : true,
-                btnFallbackDisabled: btnFall ? btnFall.disabled : true,
-                logC: logCEl ? logCEl.innerHTML : "",
-                logD: logDEl ? logDEl.innerHTML : "",
+            captureCurrentRcState();
+            sessionStorage.setItem(UCTT_STATE_KEY, JSON.stringify({
+                version: 2,
+                activeRc: getSelectedRc(),
+                states: ucttStates,
                 timestamp: Date.now()
-            };
-            sessionStorage.setItem(UCTT_STATE_KEY, JSON.stringify(state));
+            }));
         } catch (e) {
-            console.warn("Could not save UCTT state:", e);
+            console.warn('Could not save UCTT state:', e);
         }
+    }
+
+    function updateRcSelection(rc) {
+        activeRc = rc;
+        document.querySelectorAll('.rc-btn-item').forEach(function(c){ c.classList.remove('selected'); });
+        var card = document.getElementById('cardRC-' + rcDisplayName(rc));
+        if (card) card.classList.add('selected');
+        document.getElementById('rcSelect').value = rc;
+    }
+
+    function renderRcState(rc) {
+        var state = getRcState(rc);
+        isRestoringUctt = true;
+        proposed = cloneValue(state.proposed || emptyProposed());
+        setStatus(state.statusText || ('Trạng thái RC=' + rc + ': Chưa kiểm tra'), state.statusColor || 'secondary');
+        document.getElementById('cmdPreview').textContent =
+            state.cmdPreview || '# Lệnh sẽ hiển thị tại đây sau khi KIỂM TRA xong...';
+
+        var btnChange = document.getElementById('btnChangeover');
+        btnChange.textContent = state.btnChangeoverText || '🔀 Chuyển đổi...';
+        btnChange.disabled = state.btnChangeoverDisabled !== false;
+        var btnFall = document.getElementById('btnFallback');
+        btnFall.textContent = state.btnFallbackText || '↩️ Fallback (Không khả dụng)';
+        btnFall.disabled = state.btnFallbackDisabled !== false;
+
+        document.getElementById('logC').innerHTML = state.logC || '';
+        document.getElementById('logD').innerHTML = state.logD || '';
+        document.getElementById('ucttConsoleTitle').textContent =
+            'SSH CONSOLE ỨNG CỨU RC ' + rcDisplayName(rc);
+        switchTermView(state.termView || 'split', false);
+        isRestoringUctt = false;
     }
 
     function restoreUcttState() {
         try {
             var saved = sessionStorage.getItem(UCTT_STATE_KEY);
-            if (!saved) return;
-            var state = JSON.parse(saved);
-            if (!state) return;
+            var state = saved ? JSON.parse(saved) : null;
+            var activeRc = '113';
 
-            isRestoringUctt = true;
-
-            // 1. Restore RC Selection Card
-            if (state.rc) {
-                var sel = document.getElementById("rcSelect");
-                if (sel) sel.value = state.rc;
-                document.querySelectorAll('.rc-btn-item').forEach(function(c){ c.classList.remove('selected'); });
-                if (state.rc.indexOf('113') !== -1) { var el = document.getElementById('cardRC-113'); if (el) el.classList.add('selected'); }
-                else if (state.rc.indexOf('114') !== -1) { var el = document.getElementById('cardRC-114'); if (el) el.classList.add('selected'); }
-                else { var el = document.getElementById('cardRC-115'); if (el) el.classList.add('selected'); }
-            }
-
-            // 2. Restore proposed data
-            if (state.proposed) {
-                proposed = state.proposed;
-            }
-
-            // 3. Restore status label
-            if (state.statusText) {
-                var statusEl = document.getElementById("statusLabel");
-                if (statusEl) {
-                    statusEl.innerHTML = state.statusText;
-                    if (state.statusClass) statusEl.className = state.statusClass;
-                    if (state.statusStyle) statusEl.style.cssText = state.statusStyle;
+            if (state && state.version === 2 && state.states) {
+                ucttStates = state.states;
+                activeRc = state.activeRc || activeRc;
+            } else if (state && state.rc) {
+                activeRc = state.rc;
+                var migrated = newRcState(activeRc);
+                migrated.proposed = state.proposed || migrated.proposed;
+                migrated.statusText = state.statusText ?
+                    String(state.statusText).replace(/<[^>]+>/g, '') : migrated.statusText;
+                migrated.cmdPreview = state.cmdPreview || migrated.cmdPreview;
+                migrated.btnChangeoverDisabled = state.btnChangeoverDisabled !== false;
+                migrated.btnFallbackDisabled = state.btnFallbackDisabled !== false;
+                migrated.logC = state.logC || '';
+                migrated.logD = state.logD || '';
+                if (migrated.proposed.changeover.label) {
+                    migrated.btnChangeoverText = '🔀 ' + migrated.proposed.changeover.label;
                 }
+                if (migrated.proposed.fallback.label) {
+                    migrated.btnFallbackText = '↩️ ' + migrated.proposed.fallback.label;
+                }
+                ucttStates[activeRc] = migrated;
             }
 
-            // 4. Restore command preview
-            if (state.cmdPreview) {
-                var cmdEl = document.getElementById("cmdPreview");
-                if (cmdEl) cmdEl.textContent = state.cmdPreview;
-            }
-
-            // 5. Restore buttons
-            if (state.btnChangeoverDisabled !== undefined) {
-                var btnChange = document.getElementById("btnChangeover");
-                if (btnChange) btnChange.disabled = state.btnChangeoverDisabled;
-            }
-            if (state.btnFallbackDisabled !== undefined) {
-                var btnFall = document.getElementById("btnFallback");
-                if (btnFall) btnFall.disabled = state.btnFallbackDisabled;
-            }
-
-            // 6. Restore Console Logs
-            if (state.logC) {
-                var lC = document.getElementById("logC");
-                if (lC) lC.innerHTML = state.logC;
-            }
-            if (state.logD) {
-                var lD = document.getElementById("logD");
-                if (lD) lD.innerHTML = state.logD;
-            }
-
-            isRestoringUctt = false;
+            ['113', '114', '115 (115/1155/1157)'].forEach(function(rc){ getRcState(rc); });
+            updateRcSelection(activeRc);
+            renderRcState(activeRc);
+            saveUcttState();
         } catch (e) {
             isRestoringUctt = false;
-            console.warn("Could not restore UCTT state:", e);
-        }
-    }
-
-    function setRcCard(val) {
-        if (isBusy) return;
-        document.querySelectorAll('.rc-btn-item').forEach(function(c){ c.classList.remove('selected'); });
-        if (val.indexOf('113') !== -1) document.getElementById('cardRC-113').classList.add('selected');
-        else if (val.indexOf('114') !== -1) document.getElementById('cardRC-114').classList.add('selected');
-        else document.getElementById('cardRC-115').classList.add('selected');
-
-        var sel = document.getElementById("rcSelect");
-        sel.value = val;
-        onRcChange();
-    }
-
-    function switchTermView(view) {
-        document.querySelectorAll('.term-tab-btn').forEach(function(btn){ btn.classList.remove('active'); });
-        var boxC = document.getElementById("boxTermC");
-        var boxD = document.getElementById("boxTermD");
-
-        if (view === 'split') {
-            document.getElementById("btnTermSplit").classList.add('active');
-            boxC.style.display = "flex";
-            boxD.style.display = "flex";
-        } else if (view === 'C') {
-            document.getElementById("btnTermC").classList.add('active');
-            boxC.style.display = "flex";
-            boxD.style.display = "none";
-        } else if (view === 'D') {
-            document.getElementById("btnTermD").classList.add('active');
-            boxC.style.display = "none";
-            boxD.style.display = "flex";
+            console.warn('Could not restore UCTT state:', e);
+            ucttStates = {};
+            updateRcSelection('113');
+            renderRcState('113');
         }
     }
 
@@ -436,6 +456,7 @@
     }
 
     function setStatus(text, color) {
+        document.getElementById('statusLabel').dataset.statusColor = color || 'secondary';
         var el = document.getElementById("statusLabel");
         var colorMap = {
             'secondary': 'status-alert-box',
@@ -462,23 +483,6 @@
             el.style.color = '#92400e';
         }
         el.textContent = text;
-    }
-
-    function onRcChange() {
-        if (isBusy) return;
-        var rc = document.getElementById("rcSelect").value;
-        document.getElementById("btnChangeover").disabled = true;
-        document.getElementById("btnFallback").disabled = true;
-        document.getElementById("btnChangeover").textContent = "🔀 Chuyển đổi...";
-        document.getElementById("btnFallback").textContent = "↩️ Fallback (Không khả dụng)";
-        setStatus("Trạng thái RC=" + rc + ": Chưa kiểm tra", "secondary");
-        document.getElementById("cmdPreview").textContent = "# Lệnh sẽ hiển thị tại đây sau khi KIỂM TRA xong...";
-        proposed = {
-            rc: null,
-            changeover: { enabled: false, label: '', action: null, commands: [] },
-            fallback: { enabled: false, label: '', action: null, commands: [] }
-        };
-        saveUcttState();
     }
 
     // --- KIỂM TRA ---
@@ -598,6 +602,46 @@
                 saveUcttState();
             }
         });
+    }
+
+    function setRcCard(val) {
+        if (isBusy || val === activeRc) return;
+        captureCurrentRcState();
+        updateRcSelection(val);
+        renderRcState(val);
+        saveUcttState();
+    }
+
+    function switchTermView(view, shouldSave) {
+        currentTermView = view;
+        document.querySelectorAll('.term-tab-btn').forEach(function(btn){ btn.classList.remove('active'); });
+        var boxC = document.getElementById('boxTermC');
+        var boxD = document.getElementById('boxTermD');
+
+        if (view === 'C') {
+            document.getElementById('btnTermC').classList.add('active');
+            boxC.style.display = 'flex';
+            boxD.style.display = 'none';
+        } else if (view === 'D') {
+            document.getElementById('btnTermD').classList.add('active');
+            boxC.style.display = 'none';
+            boxD.style.display = 'flex';
+        } else {
+            currentTermView = 'split';
+            document.getElementById('btnTermSplit').classList.add('active');
+            boxC.style.display = 'flex';
+            boxD.style.display = 'flex';
+        }
+        if (shouldSave !== false) saveUcttState();
+    }
+
+    function onRcChange() {
+        if (isBusy) return;
+        var rc = getSelectedRc();
+        captureCurrentRcState();
+        updateRcSelection(rc);
+        renderRcState(rc);
+        saveUcttState();
     }
 
     // Khôi phục trạng thái UCTT khi vào trang

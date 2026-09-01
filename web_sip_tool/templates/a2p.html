@@ -67,6 +67,33 @@
         }
         #ctxMenu .ctx-item:hover { background: #f1f5f9; color: #0284c7; }
         #ctxMenu .ctx-sep { height: 1px; background: #e2e8f0; margin: 4px 0; }
+
+        .a2p-task-body {
+            flex: 1;
+            min-height: 0;
+        }
+        .a2p-number-field {
+            flex: 1 1 0;
+            min-height: 130px;
+            display: flex;
+            flex-direction: column;
+        }
+        .a2p-number-field-add { flex-grow: 1.15; }
+        .a2p-number-field .code-textarea {
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+        .a2p-task-body .btn-analyze,
+        .a2p-task-body #report,
+        .a2p-task-actions {
+            flex: 0 0 auto;
+            margin: 0 !important;
+        }
+
+        @media (max-width: 767.98px) {
+            .a2p-task-body { height: auto !important; }
+            .a2p-number-field .code-textarea { min-height: 160px; }
+        }
     </style>
 </head>
 <body>
@@ -157,28 +184,28 @@
                         <span>Tác vụ Chặn / Gỡ</span>
                     </div>
                 </div>
-                <div class="card-body" style="height: 100%; display: flex; flex-direction: column;">
-                    <div>
+                <div class="card-body a2p-task-body" style="height: 100%; display: flex; flex-direction: column;">
+                    <div class="a2p-number-field a2p-number-field-add">
                         <label class="fw-bold" style="font-size: 12px; color: #334155; margin-bottom: 2px; display: block;">
                             Nhập số cần CHẶN THÊM (mỗi dòng 1 số):
                         </label>
                         <textarea id="addBox" class="code-textarea" rows="6" oninput="saveA2pState()" placeholder="Mỗi dòng 1 số. Tự cắt số 0 hoặc 84 ở đầu. VD: 012345 hoặc 8412345 → chặn 12345"></textarea>
                     </div>
 
-                    <div class="mt-2">
+                    <div class="a2p-number-field">
                         <label class="fw-bold" style="font-size: 12px; color: #b91c1c; margin-bottom: 2px; display: block;">
                             Nhập số cần GỠ CHẶN:
                         </label>
                         <textarea id="delBox" class="code-textarea" rows="4" style="border-color: #fecaca; background: #fffafb;" oninput="saveA2pState()" placeholder="Chọn số bên trái → chuột phải → 'Gỡ chặn'; hoặc dán thủ công mỗi dòng 1 số. Tự cắt số 0 hoặc 84 ở đầu, chỉ gỡ số đang chặn..."></textarea>
                     </div>
 
-                    <button onclick="analyze()" id="btnAnalyze" class="btn-analyze my-2">
+                    <button onclick="analyze()" id="btnAnalyze" class="btn-analyze">
                         2. Phân tích & Tạo lệnh
                     </button>
 
-                    <div id="report" class="status-alert-box mb-2" style="white-space: pre-wrap; font-size: 11.5px;">Trạng thái: Sẵn sàng</div>
+                    <div id="report" class="status-alert-box" style="white-space: pre-wrap; font-size: 11.5px;">Trạng thái: Sẵn sàng</div>
 
-                    <div class="d-flex gap-2 mt-auto">
+                    <div class="d-flex gap-2 a2p-task-actions">
                         <button onclick="execute()" id="btnExecute" class="btn btn-danger flex-fill fw-bold" style="padding: 8px 14px; font-size: 13px;" disabled>
                             3. Tiến hành chặn/gỡ
                         </button>

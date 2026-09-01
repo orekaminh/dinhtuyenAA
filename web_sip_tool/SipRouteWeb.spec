@@ -22,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='SipRouteWeb',
+    name='SNOC2_RouteAA',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

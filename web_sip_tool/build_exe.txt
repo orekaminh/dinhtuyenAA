@@ -1,1 +1,5 @@
-pyinstaller --noconfirm --onefile --add-data "templates;templates" --add-data "static;static" --hidden-import "engineio.async_drivers.threading" SNOC2_RouteAA.py
+# Chạy trong PowerShell tại thư mục web_sip_tool:
+python -m PyInstaller --noconfirm --clean SipRouteWeb.spec
+
+# File kết quả:
+# dist\SNOC2_RouteAA.exe
