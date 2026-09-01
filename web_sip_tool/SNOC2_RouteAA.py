@@ -10,11 +10,38 @@ import threading
 import re
 import os
 import sys
+import getpass
 from logic_core import generate_commands
 import csv
 import json
 from io import StringIO
 from flask import Response
+
+# --- HELPER: XÁC ĐỊNH USER THỰC THI (KẾT HỢP WEB USER + WINDOWS OS USER) ---
+def get_action_username(current_web_user=None):
+    """
+    Tự động xác định tên người dùng thực hiện:
+    - Lấy User Windows OS (%USERNAME% hoặc getpass)
+    - Kết hợp với User Web (nếu có đăng nhập)
+    - Định dạng: 'admin (Win: HUU MINH)' hoặc 'Win: HUU MINH'
+    """
+    win_user = ""
+    try:
+        win_user = os.environ.get('USERNAME') or os.environ.get('USER') or getpass.getuser() or ""
+    except Exception:
+        win_user = os.environ.get('USERNAME') or ""
+
+    web_user = ""
+    if current_web_user and getattr(current_web_user, 'is_authenticated', False):
+        web_user = getattr(current_web_user, 'username', '')
+
+    if web_user and win_user:
+        return f"{web_user} (Win: {win_user})"
+    elif win_user:
+        return f"Win: {win_user}"
+    elif web_user:
+        return web_user
+    return "Unknown"
 
 # --- CẤU HÌNH CƠ BẢN ---
 def resource_path(relative_path):
@@ -392,7 +419,7 @@ def handle_execute_config(data):
     
     # 2. Xử lý làm sạch nội dung hiển thị cho Log
     raw_input_data = data.get('raw_input', '')
-    user_action = current_user.username if current_user.is_authenticated else "Unknown"
+    user_action = get_action_username(current_user)
     
     clean_actions = []
     if raw_input_data:
@@ -1048,7 +1075,7 @@ def handle_uctt_execute(data):
             return
 
         # Lấy user TRƯỚC khi vào thread (thread phụ không có request context)
-        user_action = current_user.username if current_user.is_authenticated else "Unknown"
+        user_action = get_action_username(current_user)
         stop_event.clear()
         socketio.emit('log_system', {'msg': f'🚨 Bắt đầu thực thi UCTT [{action}] RC={rc_raw}...', 'type': 'info'})
 
@@ -1485,7 +1512,7 @@ def handle_a2p_execute(data):
         return
 
     commands = _a2p_build_commands(final_add, final_del)
-    user_action = current_user.username if current_user.is_authenticated else "Unknown"
+    user_action = get_action_username(current_user)
     stop_ev.clear()
     emit('log_system', {'msg': f'🚨 Bắt đầu chặn/gỡ A2P (+{len(final_add)} / -{len(final_del)})...', 'type': 'info'})
 
