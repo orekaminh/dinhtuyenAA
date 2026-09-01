@@ -109,8 +109,9 @@ Ví dụ:
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         <input type="text" id="tableFilter" class="code-textarea py-1 px-2" style="width: 150px; height: 28px; font-size: 11px;" placeholder="🔍 Lọc số / đích..." onkeyup="filterResultTable()">
-                        <button type="button" id="btnExpandTable" class="btn-action-sm" onclick="toggleExpandResultTable()" title="Phóng to bảng để xem chi tiết">
-                            ⛶ Phóng to
+                        <button type="button" id="btnExpandTable" class="btn btn-sm btn-outline-primary fw-bold text-nowrap d-inline-flex align-items-center gap-1" style="height: 28px; font-size: 11.5px; padding: 0 10px;" onclick="toggleExpandResultTable()" title="Phóng to bảng để xem chi tiết">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                            <span>Phóng to</span>
                         </button>
                     </div>
                 </div>
@@ -139,9 +140,9 @@ Ví dụ:
                     <table class="status-grid table-res w-100">
                         <thead>
                             <tr>
-                                <th style="width: 28%">Số B-Number</th>
-                                <th style="width: 36%">TSSE2C</th>
-                                <th style="width: 36%">TSSE2D</th>
+                                <th style="width: 1%; white-space: nowrap; padding-right: 24px;">Số B-Number</th>
+                                <th style="width: 50%; text-align: center;">TSSE2C</th>
+                                <th style="width: 50%; text-align: center;">TSSE2D</th>
                             </tr>
                         </thead>
                         <tbody id="resBody">
@@ -493,9 +494,9 @@ Ví dụ:
             row.id = rowId;
             row.setAttribute('onclick', `syncHighlightFromTable('${b_num}')`);
             row.innerHTML = `
-                <td style="font-weight:bold; color:#003366">${b_num}</td>
-                <td id="cell-C-${rowId}"><span class="badge-status waiting">...</span></td>
-                <td id="cell-D-${rowId}"><span class="badge-status waiting">...</span></td>
+                <td style="font-weight:bold; color:#003366; white-space: nowrap; padding-right: 24px;">${b_num}</td>
+                <td id="cell-C-${rowId}" style="text-align: center;"><span class="badge-status waiting">...</span></td>
+                <td id="cell-D-${rowId}" style="text-align: center;"><span class="badge-status waiting">...</span></td>
             `;
             tbody.appendChild(row);
         }
@@ -528,12 +529,18 @@ Ví dụ:
         var btn = document.getElementById("btnExpandTable");
         if (card.classList.contains("card-fullscreen")) {
             card.classList.remove("card-fullscreen");
-            btn.innerHTML = "⛶ Phóng to";
+            btn.className = "btn btn-sm btn-outline-primary fw-bold text-nowrap d-inline-flex align-items-center gap-1";
+            btn.style.height = "28px";
+            btn.style.padding = "0 10px";
+            btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg><span>Phóng to</span>`;
             btn.title = "Phóng to bảng để xem chi tiết";
         } else {
             card.classList.add("card-fullscreen");
-            btn.innerHTML = "🗗 Thu nhỏ";
-            btn.title = "Thu nhỏ bảng về vị trí cũ (hoặc bấm Esc)";
+            btn.className = "btn btn-sm btn-primary fw-bold text-nowrap d-inline-flex align-items-center gap-1 shadow";
+            btn.style.height = "32px";
+            btn.style.padding = "0 14px";
+            btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg><span>Thu nhỏ (Esc)</span>`;
+            btn.title = "Thu nhỏ bảng về vị trí cũ (hoặc bấm phím Esc)";
         }
     }
 
