@@ -8,123 +8,217 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
     <style>
-        body {
-            background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif; font-size: 0.9rem;
-            height: 100vh; display: flex; flex-direction: column; margin: 0; overflow: hidden;
+        .left-col-scroll {
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-right: 4px;
         }
-        .card-header-custom { background-color: #fff; color: #003366; font-weight: bold; border-bottom: 2px solid #e9ecef; padding: 8px 15px; }
-        .card { border-radius: 4px; border: 1px solid #dee2e6; margin-bottom: 10px; flex-shrink: 0; }
+        .log-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0;
+        }
 
-        /* Cột trái cuộn nếu dài */
-        .left-col-scroll { height: 100%; overflow-y: auto; overflow-x: hidden; padding-right: 5px; }
+        /* RC Segmented Button Group (Gọn gàng, cân đối, thanh lịch) */
+        .rc-segmented-group {
+            display: flex;
+            gap: 6px;
+            background: #f1f5f9;
+            padding: 4px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        .rc-btn-item {
+            flex: 1;
+            padding: 8px 6px;
+            border-radius: 6px;
+            text-align: center;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.15s ease;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .rc-btn-item:hover:not(.selected) {
+            background: #ffffff;
+            color: #0f172a;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .rc-btn-item.selected {
+            background: #2563eb;
+            color: #ffffff !important;
+            font-weight: 700;
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+        }
+        .rc-btn-item .rc-badge {
+            font-family: var(--font-mono);
+            font-weight: 800;
+            font-size: 13.5px;
+        }
+        .rc-btn-item .rc-name {
+            font-size: 12px;
+            opacity: 0.9;
+        }
 
-        /* Console log (giống index.html) */
-        .log-container { display: flex; flex-direction: column; height: 100%; }
-        .log-box { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-        .log-panel {
-            background-color: #0D1117; color: #c9d1d9; font-family: 'Consolas', monospace;
-            font-size: 0.85rem; overflow-y: auto; padding: 10px; border: 1px solid #30363d;
-            white-space: pre-wrap; flex: 1; min-height: 0; margin-bottom: 0;
+        /* Cặp nút hành động 50% - 50% cân đối */
+        .btn-uctt-action {
+            height: 38px;
+            font-size: 13px;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s ease;
         }
-        .log-title {
-            background-color: #21262d; color: #58a6ff; padding: 5px 10px; font-weight: bold; font-size: 0.85rem;
-            display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
-        }
-        .btn-clear-log { cursor: pointer; color: #ff7b72; font-size: 0.8rem; text-decoration: none; }
-        .btn-clear-log:hover { text-decoration: underline; color: #ffad0a; }
-        .log-cmd { color: #79c0ff; font-weight: bold; }
-        .log-success { color: #56d364; }
-        .log-error { color: #ff7b72; }
-        .log-info { color: #d2a8ff; }
-        .log-raw { color: #c9d1d9; }
-
-        /* Bộ lệnh xem trước */
-        #cmdPreview {
-            background-color: #f8f9fa; border: 1px dashed #ced4da; border-radius: 4px;
-            font-family: 'Consolas', monospace; font-size: 0.82rem; color: #198754;
-            white-space: pre-wrap; padding: 8px; min-height: 60px; max-height: 140px; overflow-y: auto;
-        }
-        .rc-pill { font-size: 1.1rem; font-weight: bold; }
     </style>
 </head>
 <body>
 
 {% include '_navbar.html' %}
 
-<div class="container-fluid flex-grow-1 overflow-hidden pb-2 d-flex flex-column">
+<div class="container-fluid flex-grow-1 overflow-hidden pb-2 d-flex flex-column" style="min-height: 0;">
     <div class="row g-2 w-100 m-0 h-100">
 
-        <div class="col-md-7 left-col-scroll">
-            <div class="card shadow-sm">
-                <div class="card-header-custom">🔄 Điều khiển Ứng cứu 11x (RC 113 / 114 / 115)</div>
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <div class="input-group input-group-lg rc-group" style="width: auto;">
-                            <span class="input-group-text bg-primary text-white fw-bold">📡 Chọn RC</span>
-                            <select id="rcSelect" class="form-select fw-bold rc-select" onchange="onRcChange()">
-                                <option value="113">113</option>
-                                <option value="114">114</option>
-                                <option value="115 (115/1155/1157)" title="RC 115 gồm 115 / 1155 / 1157">115</option>
-                            </select>
+        <!-- CỘT TRÁI (4/12): ĐIỀU KHIỂN ỨNG CỨU 11X (GỌN GÀNG, VỪA VẶN) -->
+        <div class="col-md-4 left-col-scroll d-flex flex-column gap-2">
+            
+            <div class="pro-card">
+                <div class="card-head">
+                    <div class="card-head-title">
+                        <span>🔄 Điều khiển Ứng cứu khẩn cấp 11x</span>
+                    </div>
+                    <select id="rcSelect" class="d-none" onchange="onRcChange()">
+                        <option value="113" selected>113</option>
+                        <option value="114">114</option>
+                        <option value="115 (115/1155/1157)">115</option>
+                    </select>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Segmented RC Bar -->
+                    <div class="rc-segmented-group">
+                        <div class="rc-btn-item selected" id="cardRC-113" onclick="setRcCard('113')">
+                            <span class="rc-badge">RC 113</span>
+                            <span class="rc-name">Cảnh sát</span>
                         </div>
-                        <button onclick="runUcttCheck()" id="btnCheck" class="btn btn-primary btn-lg fw-bold">🔍 Kiểm tra</button>
-                        <button onclick="stopUctt()" id="btnStop" class="btn btn-danger btn-lg fw-bold ms-auto" disabled>⏹ DỪNG</button>
+                        <div class="rc-btn-item" id="cardRC-114" onclick="setRcCard('114')">
+                            <span class="rc-badge">RC 114</span>
+                            <span class="rc-name">Cứu hỏa</span>
+                        </div>
+                        <div class="rc-btn-item" id="cardRC-115" onclick="setRcCard('115 (115/1155/1157)')">
+                            <span class="rc-badge">RC 115</span>
+                            <span class="rc-name">Cấp cứu</span>
+                        </div>
                     </div>
 
-                    <hr>
-
-                    <div id="statusLabel" class="alert alert-secondary mb-3" role="alert">
-                        Trạng thái: Chưa kiểm tra
+                    <!-- Row: Kiểm tra & Dừng (Cân xứng, cùng chiều cao) -->
+                    <div class="d-flex gap-2 mt-1">
+                        <button onclick="runUcttCheck()" id="btnCheck" class="btn-step1 flex-fill" style="height: 36px; font-size: 12.5px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            <span>BƯỚC 1: KIỂM TRA TRẠNG THÁI</span>
+                        </button>
+                        <button onclick="stopUctt()" id="btnStop" class="btn-stop" style="height: 36px; padding: 0 14px;" disabled>
+                            ⏹ DỪNG
+                        </button>
                     </div>
 
-                    <div class="d-flex gap-2">
-                        <button onclick="executeUctt('changeover')" id="btnChangeover" class="btn btn-warning flex-fill fw-bold" disabled>
-                            🔀 Chuyển đổi...
-                        </button>
-                        <button onclick="executeUctt('fallback')" id="btnFallback" class="btn btn-success flex-fill fw-bold" disabled>
-                            ↩️ Fallback (ANRAR)
-                        </button>
+                    <!-- Telemetry Status Label -->
+                    <div id="statusLabel" class="status-alert-box my-1" role="alert" style="font-size: 11.5px;">
+                        <span>Trạng thái: Chưa kiểm tra</span>
+                    </div>
+
+                    <!-- Row: Chuyển đổi & Fallback (Chia đều 50% - 50% cân đối hoàn hảo) -->
+                    <div class="row g-2 mt-1">
+                        <div class="col-6">
+                            <button onclick="executeUctt('changeover')" id="btnChangeover" class="btn-uctt-action btn-changeover w-100" disabled>
+                                🔀 Chuyển đổi...
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button onclick="executeUctt('fallback')" id="btnFallback" class="btn-uctt-action btn-fallback w-100" disabled>
+                                ↩️ Fallback (ANRAR)
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="card shadow-sm mt-2">
-                <div class="card-header-custom">⚙️ Bộ lệnh MML sẽ thực thi (tham khảo)</div>
-                <div class="card-body p-2">
-                    <div id="cmdPreview"># Lệnh sẽ hiển thị tại đây sau khi KIỂM TRA xong...</div>
+            <!-- PREVIEW MML COMMANDS -->
+            <div class="pro-card flex-grow-1 d-flex flex-column" style="min-height: 0;">
+                <div class="card-head">
+                    <div class="card-head-title">
+                        <span>⚙️ Lệnh MML sẽ thực thi</span>
+                    </div>
+                    <button type="button" class="btn-action-sm" onclick="copyUcttMML()">
+                        📋 Sao chép
+                    </button>
+                </div>
+                <div class="card-body p-0 flex-grow-1">
+                    <div class="mml-editor-wrapper h-100">
+                        <div id="cmdPreview" class="mml-textarea" style="height: 100%; min-height: 120px; overflow-y: auto;"># Lệnh sẽ hiển thị tại đây sau khi KIỂM TRA xong...</div>
+                    </div>
                 </div>
             </div>
+
         </div>
 
-        <div class="col-md-5 log-container">
-            <div class="log-box mb-2">
-                <div class="log-title">
-                    📡 Console TSSE2C
-                    <span onclick="clearLog('C')" class="btn-clear-log">🗑️ Xóa Log</span>
+        <!-- CỘT PHẢI (8/12): DUAL SSH CONSOLE STREAM RỘNG RÃI -->
+        <div class="col-md-8 log-container">
+            <div class="terminal-container">
+                <div class="terminal-top-header">
+                    <div class="terminal-title">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                        <span>SSH CONSOLE ỨNG CỨU 11X</span>
+                    </div>
+                    <div class="terminal-tabs">
+                        <button type="button" class="term-tab-btn active" id="btnTermSplit" onclick="switchTermView('split')">Chia đôi (C+D)</button>
+                        <button type="button" class="term-tab-btn" id="btnTermC" onclick="switchTermView('C')">TSSE2C</button>
+                        <button type="button" class="term-tab-btn" id="btnTermD" onclick="switchTermView('D')">TSSE2D</button>
+                    </div>
                 </div>
-                <div id="logC" class="log-panel"></div>
-            </div>
 
-            <div class="log-box">
-                <div class="log-title" style="color: #ff7b72">
-                    📡 Console TSSE2D
-                    <span onclick="clearLog('D')" class="btn-clear-log">🗑️ Xóa Log</span>
+                <div class="terminal-views-wrapper">
+                    <!-- Console TSSE2C -->
+                    <div class="terminal-split-box" id="boxTermC">
+                        <div class="node-sub-head">
+                            <span>📡 Node TSSE2C (10.202.47.54)</span>
+                            <span onclick="clearLog('C')" class="btn-term-clear">🗑️ Xóa log</span>
+                        </div>
+                        <div id="logC" class="terminal-output"></div>
+                    </div>
+                    
+                    <!-- Console TSSE2D -->
+                    <div class="terminal-split-box" id="boxTermD">
+                        <div class="node-sub-head node-d">
+                            <span>📡 Node TSSE2D (10.202.49.54)</span>
+                            <span onclick="clearLog('D')" class="btn-term-clear">🗑️ Xóa log</span>
+                        </div>
+                        <div id="logD" class="terminal-output"></div>
+                    </div>
                 </div>
-                <div id="logD" class="log-panel"></div>
             </div>
         </div>
 
     </div>
 </div>
 
-<div class="w-100 bg-dark text-center py-1" style="font-size: 12px; color: #adb5bd; border-top: 1px solid #495057;">
-    &copy; 2026 SIP Routing Tool | VNPT | Developed by <strong>Trần Hữu Minh</strong> (<a href="mailto:tranhuuminh@vnpt.vn" class="text-decoration-none" style="color: #adb5bd;">tranhuuminh@vnpt.vn</a>)
-</div>
+<footer class="app-footer">
+    <div>&copy; 2026 SIP Routing Tool | <b>VNPT SNOC2</b> | Phiên bản Web</div>
+    <div>Phát triển bởi: <a href="mailto:tranhuuminh@vnpt.vn">Trần Hữu Minh</a> (tranhuuminh@vnpt.vn)</div>
+</footer>
 
 <script>
     var socket = io({ transports: ['websocket', 'polling'] });
 
-    // Lưu hành động được đề xuất cho mỗi nút sau khi kiểm tra
     var proposed = {
         rc: null,
         changeover: { enabled: false, label: '', action: null, commands: [] },
@@ -132,13 +226,55 @@
     };
     var isBusy = false;
 
-    // --- LOGGING (giống index.html) ---
+    function setRcCard(val) {
+        if (isBusy) return;
+        document.querySelectorAll('.rc-btn-item').forEach(function(c){ c.classList.remove('selected'); });
+        if (val.indexOf('113') !== -1) document.getElementById('cardRC-113').classList.add('selected');
+        else if (val.indexOf('114') !== -1) document.getElementById('cardRC-114').classList.add('selected');
+        else document.getElementById('cardRC-115').classList.add('selected');
+
+        var sel = document.getElementById("rcSelect");
+        sel.value = val;
+        onRcChange();
+    }
+
+    function switchTermView(view) {
+        document.querySelectorAll('.term-tab-btn').forEach(function(btn){ btn.classList.remove('active'); });
+        var boxC = document.getElementById("boxTermC");
+        var boxD = document.getElementById("boxTermD");
+
+        if (view === 'split') {
+            document.getElementById("btnTermSplit").classList.add('active');
+            boxC.style.display = "flex";
+            boxD.style.display = "flex";
+        } else if (view === 'C') {
+            document.getElementById("btnTermC").classList.add('active');
+            boxC.style.display = "flex";
+            boxD.style.display = "none";
+        } else if (view === 'D') {
+            document.getElementById("btnTermD").classList.add('active');
+            boxC.style.display = "none";
+            boxD.style.display = "flex";
+        }
+    }
+
+    function copyUcttMML() {
+        var text = document.getElementById("cmdPreview").innerText;
+        if (!text || text.startsWith("#")) {
+            showToast("Chưa có lệnh khả dụng để sao chép!", "warning");
+            return;
+        }
+        navigator.clipboard.writeText(text);
+        showToast("Đã sao chép lệnh MML vào Clipboard!", "success");
+    }
+
+    // --- LOGGING ---
     socket.on('log', function(data) {
         var targetLog = document.getElementById(data.node === 'TSSE2C' ? "logC" : "logD");
         if (targetLog) {
             var span = document.createElement("span");
             span.textContent = data.msg;
-            span.className = "log-" + data.type;
+            span.className = "log-" + data.type + " log-line";
             targetLog.appendChild(span);
             targetLog.scrollTop = targetLog.scrollHeight;
         }
@@ -147,23 +283,29 @@
     socket.on('log_system', function(data) {
         ['logC', 'logD'].forEach(function(id) {
             var el = document.getElementById(id);
-            var div = document.createElement("div");
-            div.textContent = ">>> " + data.msg;
-            div.style.color = "yellow";
-            el.appendChild(div);
-            el.scrollTop = el.scrollHeight;
+            if (el) {
+                var div = document.createElement("div");
+                div.textContent = ">>> " + data.msg;
+                div.className = "log-system log-line";
+                el.appendChild(div);
+                el.scrollTop = el.scrollHeight;
+            }
         });
     });
 
     function clearLog(type) {
-        document.getElementById(type === 'C' ? "logC" : "logD").innerHTML = "";
+        var el = document.getElementById(type === 'C' ? "logC" : "logD");
+        if (el) el.innerHTML = "";
     }
 
     // --- TRẠNG THÁI NÚT ---
     function setBusy(busy) {
         isBusy = busy;
         document.getElementById("btnCheck").disabled = busy;
-        document.getElementById("rcSelect").disabled = busy;
+        document.querySelectorAll('.rc-btn-item').forEach(function(c){
+            if (busy) c.style.pointerEvents = 'none';
+            else c.style.pointerEvents = 'auto';
+        });
         document.getElementById("btnStop").disabled = !busy;
         if (busy) {
             document.getElementById("btnChangeover").disabled = true;
@@ -173,13 +315,35 @@
 
     function setStatus(text, color) {
         var el = document.getElementById("statusLabel");
-        el.className = "alert alert-" + (color || "secondary") + " mb-3";
+        var colorMap = {
+            'secondary': 'status-alert-box',
+            'primary': 'status-alert-box',
+            'success': 'status-alert-box',
+            'warning': 'status-alert-box',
+            'danger': 'status-alert-box'
+        };
+        el.className = colorMap[color] || "status-alert-box";
+        if (color === 'success') {
+            el.style.backgroundColor = '#ecfdf5';
+            el.style.borderColor = '#a7f3d0';
+            el.style.borderLeftColor = '#059669';
+            el.style.color = '#065f46';
+        } else if (color === 'danger') {
+            el.style.backgroundColor = '#fef2f2';
+            el.style.borderColor = '#fecaca';
+            el.style.borderLeftColor = '#dc2626';
+            el.style.color = '#991b1b';
+        } else {
+            el.style.backgroundColor = '#fffbeb';
+            el.style.borderColor = '#fde68a';
+            el.style.borderLeftColor = '#f59e0b';
+            el.style.color = '#92400e';
+        }
         el.textContent = text;
     }
 
-    // Đổi RC -> reset trạng thái (tránh thực thi NHẦM RC cũ sau khi đã Kiểm tra RC khác)
     function onRcChange() {
-        if (isBusy) return;   // đang chạy thì không reset
+        if (isBusy) return;
         var rc = document.getElementById("rcSelect").value;
         document.getElementById("btnChangeover").disabled = true;
         document.getElementById("btnFallback").disabled = true;
@@ -199,7 +363,6 @@
         var rc = document.getElementById("rcSelect").value;
         clearLog('C'); clearLog('D');
         document.getElementById("cmdPreview").textContent = "# Đang kiểm tra trạng thái trên 2 node...";
-        // Reset nút + dữ liệu đề xuất; set proposed.rc ngay để khớp RC đang kiểm tra
         document.getElementById("btnChangeover").textContent = "🔀 Chuyển đổi...";
         document.getElementById("btnFallback").textContent = "↩️ Fallback (Không khả dụng)";
         proposed = {
@@ -216,9 +379,11 @@
         setBusy(false);
         setStatus(data.status_text, data.status_color);
 
-        // Cảnh báo chủ động khi 2 node KHÔNG ĐỒNG BỘ
         if (data.status_color === 'danger' && (data.status_text || '').indexOf('KHÔNG ĐỒNG BỘ') !== -1) {
-            alert('⚠️ Trạng thái 2 node KHÔNG ĐỒNG BỘ! Vui lòng kiểm tra tay.');
+            showAlert('Trạng thái 2 node KHÔNG ĐỒNG BỘ! Vui lòng kiểm tra tay.', {
+                title: 'Cảnh báo không đồng bộ',
+                type: 'error'
+            });
         }
 
         proposed.rc = document.getElementById("rcSelect").value;
@@ -235,7 +400,6 @@
         btnF.textContent = "↩️ " + data.fallback.label;
         btnF.disabled = !data.fallback.enabled;
 
-        // Hiện lệnh MML thật sẽ chạy của hành động đang khả dụng
         var preview = [];
         if (data.changeover.enabled) preview = proposed.changeover.commands;
         else if (data.fallback.enabled) preview = proposed.fallback.commands;
@@ -248,7 +412,7 @@
         try {
             var info = (type === 'changeover') ? proposed.changeover : proposed.fallback;
             if (!info || !info.enabled || !info.action || !proposed.rc) {
-                alert("⚠️ Dữ liệu chưa sẵn sàng. Vui lòng bấm 'Kiểm tra' lại trước khi thực hiện.");
+                showToast("Dữ liệu chưa sẵn sàng. Vui lòng bấm 'Kiểm tra' lại trước khi thực hiện.", "warning");
                 return;
             }
 
@@ -259,19 +423,25 @@
                       "Chi tiết các lệnh đầu tiên:\n" + cmds.slice(0, 5).join('\n');
             if (cmds.length > 5) msg += "\n... và " + (cmds.length - 5) + " lệnh nữa.";
             msg += "\n\nThao tác này sẽ chạy trên CẢ HAI node TSSE2C & TSSE2D.";
-            if (!confirm(msg)) return;
 
-            var execRc = proposed.rc, execLabel = info.label, execAction = info.action;
-            setBusy(true);
-            setStatus("Trạng thái RC=" + execRc + ": Đang thực hiện '" + execLabel + "'...", "warning");
-            document.getElementById("cmdPreview").textContent = cmds.join('\n');
-            socket.emit('execute_uctt', { rc: execRc, action: execAction });
+            showConfirm(msg, {
+                title: "Xác nhận chuyển đổi UCTT",
+                type: "warning",
+                isDanger: true,
+                okText: "Tiến hành chạy",
+                onOk: function() {
+                    var execRc = proposed.rc, execLabel = info.label, execAction = info.action;
+                    setBusy(true);
+                    setStatus("Trạng thái RC=" + execRc + ": Đang thực hiện '" + execLabel + "'...", "warning");
+                    document.getElementById("cmdPreview").textContent = cmds.join('\n');
+                    socket.emit('execute_uctt', { rc: execRc, action: execAction });
 
-            // Reset đề xuất sau khi đã gửi (đề phòng bấm lại action cũ; proposed.rc giữ để hiển thị kết quả)
-            proposed.changeover = { enabled: false, label: '', action: null, commands: [] };
-            proposed.fallback = { enabled: false, label: '', action: null, commands: [] };
+                    proposed.changeover = { enabled: false, label: '', action: null, commands: [] };
+                    proposed.fallback = { enabled: false, label: '', action: null, commands: [] };
+                }
+            });
         } catch (err) {
-            alert("Lỗi khi bấm nút thực thi: " + err);
+            showAlert("Lỗi khi bấm nút thực thi: " + err, { title: "Lỗi phát sinh", type: "error" });
         }
     }
 
@@ -279,22 +449,27 @@
         var rc = data.rc || proposed.rc || document.getElementById("rcSelect").value;
         if (data.ok) {
             setStatus("Trạng thái RC=" + rc + ": ✅ Đã hoàn tất", "success");
-            alert("✅ Đã hoàn tất thực thi UCTT trên các node!");
+            showAlert("Đã hoàn tất thực thi UCTT trên các node!", { title: "Thực thi thành công", type: "success" });
         } else {
             setStatus("Trạng thái RC=" + rc + ": ❌ Thực thi thất bại / đã dừng", "danger");
-            alert("❌ Thực thi UCTT thất bại hoặc bị dừng. Vui lòng xem console.");
+            showAlert("Thực thi UCTT thất bại hoặc bị dừng. Vui lòng xem console.", { title: "Thực thi thất bại", type: "error" });
         }
-        // Tự kiểm tra lại sau ~0.7s để kịp thấy nhãn hoàn tất (giống desktop root.after(500))
         setTimeout(runUcttCheck, 700);
     });
 
     // --- DỪNG ---
     function stopUctt() {
-        if (confirm("Dừng ngay lập tức?")) {
-            socket.emit('stop_task');
-            setStatus("Trạng thái: Đã gửi lệnh DỪNG... (chờ tiến trình đóng)", "danger");
-            // KHÔNG mở nút ngay; chờ server emit uctt_finished/uctt_check_result rồi setBusy(false)
-        }
+        showConfirm("Bạn có chắc chắn muốn DỪNG ngay lập tức?", {
+            title: "Dừng tác vụ UCTT",
+            type: "error",
+            isDanger: true,
+            okText: "Dừng ngay",
+            onOk: function() {
+                socket.emit('stop_task');
+                setStatus("Trạng thái: Đã gửi lệnh DỪNG... (chờ tiến trình đóng)", "danger");
+                showToast("Đã gửi tín hiệu dừng tiến trình", "warning");
+            }
+        });
     }
 </script>
 </body>

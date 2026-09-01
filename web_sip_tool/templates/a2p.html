@@ -8,138 +8,195 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
     <style>
-        body {
-            background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif; font-size: 0.9rem;
-            height: 100vh; display: flex; flex-direction: column; margin: 0; overflow: hidden;
+        .a2p-col-scroll {
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-right: 4px;
         }
-        .card-header-custom { background-color: #fff; color: #003366; font-weight: bold; border-bottom: 2px solid #e9ecef; padding: 8px 15px; }
-        .card { border-radius: 4px; border: 1px solid #dee2e6; margin-bottom: 10px; }
-        .left-col-scroll { height: 100%; overflow-y: auto; overflow-x: hidden; padding-right: 5px; }
-        textarea.form-control { font-family: 'Consolas', monospace; font-size: 0.9rem; }
+        
+        #tableWrap {
+            max-height: 48vh;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            background: #ffffff;
+        }
 
-        /* Bảng danh sách chặn */
-        #tableWrap { max-height: 52vh; overflow-y: auto; }
-        .table-a2p { width: 100%; font-family: 'Consolas', monospace; font-size: 13px; border-collapse: collapse; }
-        .table-a2p th { position: sticky; top: 0; background: #f8f9fa; z-index: 1; border-bottom: 2px solid #dee2e6; padding: 5px; text-align: center; }
-        .table-a2p td { border-bottom: 1px solid #eee; padding: 4px 8px; vertical-align: middle; }
-        .row-unknown td { color: #6c757d; }
-        .row-new td { color: #0056b3; font-weight: bold; background: #eaf3ff; }
+        .table-a2p {
+            width: 100%;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        .table-a2p th {
+            position: sticky;
+            top: 0;
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 700;
+            font-size: 10.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 5px 6px;
+            border-bottom: 1px solid var(--border-color);
+            z-index: 1;
+            text-align: center;
+        }
+        .table-a2p td {
+            border-bottom: 1px solid #f1f5f9;
+            padding: 4px 6px;
+            vertical-align: middle;
+        }
         .table-a2p tr { cursor: pointer; }
-        .table-a2p tr.selected td { background: #cce5ff !important; }
+        .table-a2p tr:hover td { background-color: #f1f5f9; }
+        .table-a2p tr.selected td { background-color: #e0f2fe !important; }
+        .row-unknown td { color: #94a3b8; }
+        .row-new td { color: #0284c7; font-weight: bold; background: #f0f9ff; }
 
-        /* Menu chuột phải tự viết (không cần Bootstrap JS, chạy offline) */
+        /* Menu chuột phải tự viết */
         #ctxMenu {
-            position: fixed; display: none; z-index: 9999; min-width: 200px;
-            background: #ECEFF1; border: 1px solid #78909C; border-radius: 4px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, .3); padding: 4px 0; font-size: 14px;
+            position: fixed; display: none; z-index: 9999; min-width: 210px;
+            background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .18); padding: 4px 0; font-size: 13px;
         }
-        #ctxMenu .ctx-item { padding: 7px 16px; cursor: pointer; color: #37474F; }
-        #ctxMenu .ctx-item:hover { background: #CFD8DC; color: #000; }
-        #ctxMenu .ctx-sep { height: 1px; background: #B0BEC5; margin: 4px 0; }
-
-        /* Console (1 node) */
-        .log-container { display: flex; flex-direction: column; height: 100%; }
-        .log-title {
-            background-color: #21262d; color: #58a6ff; padding: 5px 10px; font-weight: bold; font-size: 0.85rem;
-            display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+        #ctxMenu .ctx-item {
+            padding: 7px 14px; cursor: pointer; color: #1e293b; font-weight: 500;
+            display: flex; align-items: center; gap: 6px;
         }
-        .log-panel {
-            background-color: #0D1117; color: #c9d1d9; font-family: 'Consolas', monospace;
-            font-size: 0.85rem; overflow-y: auto; padding: 10px; border: 1px solid #30363d;
-            white-space: pre-wrap; flex: 1; min-height: 0;
-        }
-        .btn-clear-log { cursor: pointer; color: #ff7b72; font-size: 0.8rem; text-decoration: none; }
-        .log-cmd { color: #79c0ff; font-weight: bold; }
-        .log-success { color: #56d364; }
-        .log-error { color: #ff7b72; }
-        .log-info { color: #d2a8ff; }
-        .log-raw { color: #c9d1d9; }
-
-        #report { white-space: pre-wrap; font-size: 0.85rem; }
+        #ctxMenu .ctx-item:hover { background: #f1f5f9; color: #0284c7; }
+        #ctxMenu .ctx-sep { height: 1px; background: #e2e8f0; margin: 4px 0; }
     </style>
 </head>
 <body>
 
 {% include '_navbar.html' %}
 
-<div class="container-fluid flex-grow-1 overflow-hidden pb-2 d-flex flex-column">
+<div class="container-fluid flex-grow-1 overflow-hidden pb-2 d-flex flex-column" style="min-height: 0;">
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} py-1 px-3 mb-2 small shadow-sm">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
     <div class="row g-2 w-100 m-0 h-100">
 
-        <!-- CỘT 1: Danh sách số đang chặn -->
-        <div class="col-md-5 left-col-scroll">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-              {% if messages %}
-                {% for category, message in messages %}
-                  <div class="alert alert-{{ category }} py-2 mb-2">{{ message }}</div>
-                {% endfor %}
-              {% endif %}
-            {% endwith %}
-
-            <div class="card shadow-sm">
-                <div id="freshHeader" class="card-header-custom">⚠️ Dữ liệu cache — Hãy bấm Quét để lấy mới</div>
-                <div class="card-body p-2">
-                    <button onclick="fetchData()" id="btnFetch" class="btn btn-info text-white w-100 fw-bold mb-2">
-                        1. Quét toàn bộ số ĐANG CHẶN trên Node
+        <!-- CỘT 1 (3/12): DANH SÁCH SỐ ĐANG CHẶN + FORM NHẬP JSON ADMIN (GỌN GÀNG, VỪA PHẢI) -->
+        <div class="col-md-3 a2p-col-scroll d-flex flex-column gap-2">
+            
+            <div class="pro-card" style="flex: 1; display: flex; flex-direction: column;">
+                <div class="card-head">
+                    <div id="freshHeader" class="card-head-title" style="color: #d97706; font-size: 11.5px;">
+                        ⚠️ Dữ liệu cache — Hãy bấm Quét
+                    </div>
+                </div>
+                <div class="card-body" style="flex: 1; display: flex; flex-direction: column; padding: 8px;">
+                    <button onclick="fetchData()" id="btnFetch" class="btn-step1 mb-1" style="font-size: 12px; padding: 6px 10px;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                        <span>1. Quét số ĐANG CHẶN</span>
                     </button>
-                    <input type="text" id="search" class="form-control form-control-sm mb-2" placeholder="🔍 Tìm nhanh số..." oninput="renderTable()">
-                    <div class="text-muted small mb-1">💡 Chọn nhiều dòng (Ctrl/Shift + click) rồi <b>chuột phải</b> để gỡ hàng loạt.</div>
-                    <div id="tableWrap">
+                    
+                    <input type="text" id="search" class="code-textarea py-1 px-2 mb-1" style="height: 28px; font-size: 11px;" placeholder="🔍 Tìm nhanh số..." oninput="renderTable()">
+                    
+                    <div class="text-muted" style="font-size: 10.5px; margin-bottom: 3px;">
+                        💡 Chọn dòng (Ctrl/Shift) rồi <b>chuột phải</b> để gỡ.
+                    </div>
+
+                    <div id="tableWrap" style="flex: 1;">
                         <table class="table-a2p">
                             <thead>
-                                <tr><th style="width:45%">Số điện thoại</th><th style="width:40%">Ngày chặn (Log)</th><th style="width:15%"></th></tr>
+                                <tr>
+                                    <th style="width: 48%">Số ĐT</th>
+                                    <th style="width: 40%">Ngày chặn</th>
+                                    <th style="width: 12%"></th>
+                                </tr>
                             </thead>
                             <tbody id="tableBody"></tbody>
                         </table>
                     </div>
-                    <div class="text-muted small mt-1" id="countLabel">Chưa có dữ liệu.</div>
+                    
+                    <div class="text-muted small mt-1" id="countLabel" style="font-size: 11px;">Chưa có dữ liệu.</div>
                 </div>
             </div>
 
             {% if current_user.username == 'admin' %}
-            <div class="card shadow-sm">
-                <div class="card-header-custom">⬆️ Nhập lịch sử chặn từ JSON (admin)</div>
+            <div class="pro-card">
+                <div class="card-head py-1 px-2">
+                    <div class="card-head-title" style="font-size: 11.5px;">
+                        <span>⬆️ Nhập lịch sử JSON (admin)</span>
+                    </div>
+                </div>
                 <div class="card-body p-2">
-                    <form method="POST" action="{{ url_for('a2p_import') }}" enctype="multipart/form-data" class="d-flex gap-2 align-items-center">
-                        <input type="file" name="file" accept=".json,application/json" class="form-control form-control-sm" required>
-                        <button type="submit" class="btn btn-secondary btn-sm fw-bold text-nowrap"
+                    <form method="POST" action="{{ url_for('a2p_import') }}" enctype="multipart/form-data" class="d-flex gap-1 align-items-center">
+                        <input type="file" name="file" accept=".json,application/json" class="form-control form-control-sm" style="font-size: 10.5px; height: 28px; padding: 2px 4px;" required>
+                        <button type="submit" class="btn btn-secondary btn-sm fw-bold text-nowrap" style="height: 28px; padding: 2px 8px; font-size: 11px;"
                                 onclick="return confirm('Nhập file JSON vào CSDL? Số đã có sẽ được CẬP NHẬT ngày chặn.')">Nhập</button>
                     </form>
-                    <div class="text-muted small mt-1">File dạng <code>{"số":"ngày"}</code> (a2p_history.json cũ). Số trùng → cập nhật ngày; số mới → thêm.</div>
+                    <div class="text-muted" style="font-size: 10px; margin-top: 2px;">
+                        File <code>{"số":"ngày"}</code> (a2p_history.json cũ).
+                    </div>
                 </div>
             </div>
             {% endif %}
         </div>
 
-        <!-- CỘT 2: Tác vụ chặn/gỡ -->
-        <div class="col-md-4 left-col-scroll">
-            <div class="card shadow-sm">
-                <div class="card-header-custom">⚙️ Tác vụ Chặn / Gỡ</div>
-                <div class="card-body p-2">
-                    <label class="fw-bold small">Nhập số cần CHẶN THÊM (mỗi dòng 1 số):</label>
-                    <textarea id="addBox" class="form-control mb-2" rows="8" placeholder="Mỗi dòng 1 số. Tự cắt số 0 hoặc 84 ở đầu. VD: 012345 hoặc 8412345 → chặn 12345"></textarea>
+        <!-- CỘT 2 (4/12): TÁC VỤ CHẶN / GỠ (VỪA VẶN, CÂN ĐỐI) -->
+        <div class="col-md-4 a2p-col-scroll d-flex flex-column gap-2">
+            <div class="pro-card" style="height: 100%;">
+                <div class="card-head">
+                    <div class="card-head-title">
+                        <span>⚙️ Tác vụ Chặn / Gỡ</span>
+                    </div>
+                </div>
+                <div class="card-body" style="height: 100%; display: flex; flex-direction: column;">
+                    <div>
+                        <label class="fw-bold" style="font-size: 12px; color: #334155; margin-bottom: 2px; display: block;">
+                            Nhập số cần CHẶN THÊM (mỗi dòng 1 số):
+                        </label>
+                        <textarea id="addBox" class="code-textarea" rows="6" placeholder="Mỗi dòng 1 số. Tự cắt số 0 hoặc 84 ở đầu. VD: 012345 hoặc 8412345 → chặn 12345"></textarea>
+                    </div>
 
-                    <label class="fw-bold small">Nhập số cần GỠ CHẶN:</label>
-                    <textarea id="delBox" class="form-control mb-2" rows="4" placeholder="Chọn số bên trái → chuột phải → 'Gỡ chặn'; hoặc dán thủ công mỗi dòng 1 số. Tự cắt số 0 hoặc 84 ở đầu, chỉ gỡ số đang chặn..."></textarea>
+                    <div class="mt-2">
+                        <label class="fw-bold" style="font-size: 12px; color: #b91c1c; margin-bottom: 2px; display: block;">
+                            Nhập số cần GỠ CHẶN:
+                        </label>
+                        <textarea id="delBox" class="code-textarea" rows="4" style="border-color: #fecaca; background: #fffafb;" placeholder="Chọn số bên trái → chuột phải → 'Gỡ chặn'; hoặc dán thủ công mỗi dòng 1 số. Tự cắt số 0 hoặc 84 ở đầu, chỉ gỡ số đang chặn..."></textarea>
+                    </div>
 
-                    <button onclick="analyze()" id="btnAnalyze" class="btn btn-warning w-100 fw-bold mb-2">2. Phân tích & Tạo lệnh</button>
+                    <button onclick="analyze()" id="btnAnalyze" class="btn-analyze my-2">
+                        2. Phân tích & Tạo lệnh
+                    </button>
 
-                    <div id="report" class="alert alert-secondary py-2 mb-2">Trạng thái: Sẵn sàng</div>
+                    <div id="report" class="status-alert-box mb-2" style="white-space: pre-wrap; font-size: 11.5px;">Trạng thái: Sẵn sàng</div>
 
-                    <div class="d-flex gap-2">
-                        <button onclick="execute()" id="btnExecute" class="btn btn-danger flex-fill fw-bold" disabled>3. Tiến hành chặn/gỡ</button>
-                        <button onclick="stopTask()" id="btnStop" class="btn btn-secondary fw-bold" disabled>⏹ DỪNG</button>
+                    <div class="d-flex gap-2 mt-auto">
+                        <button onclick="execute()" id="btnExecute" class="btn btn-danger flex-fill fw-bold" style="padding: 8px 14px; font-size: 13px;" disabled>
+                            3. Tiến hành chặn/gỡ
+                        </button>
+                        <button onclick="stopTask()" id="btnStop" class="btn-stop" style="height: 36px;" disabled>
+                            ⏹ DỪNG
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- CỘT 3: Console -->
-        <div class="col-md-3 log-container">
-            <div class="log-title">
-                📡 Console TSSN2D
-                <span onclick="clearLog()" class="btn-clear-log">🗑️ Xóa Log</span>
+        <!-- CỘT 3 (5/12): SSH CONSOLE TSSN2D (MỞ RỘNG RÃI, THOÁNG ĐÃNG ĐỂ XEM ĐẦY ĐỦ LOG) -->
+        <div class="col-md-5 log-container">
+            <div class="terminal-container">
+                <div class="terminal-top-header">
+                    <div class="terminal-title">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                        <span>SSH Console TSSN2D (10.204.161.61)</span>
+                    </div>
+                    <span onclick="clearLog()" class="btn-term-clear">🗑️ Xóa log</span>
+                </div>
+                <div id="logA" class="terminal-output" style="font-size: 12px; line-height: 1.55;"></div>
             </div>
-            <div id="logA" class="log-panel"></div>
         </div>
 
     </div>
@@ -147,14 +204,19 @@
 
 <!-- Menu chuột phải cho bảng danh sách chặn -->
 <div id="ctxMenu">
-    <div class="ctx-item" id="ctxRemove">✅ Gỡ chặn các số đã chọn</div>
+    <div class="ctx-item" id="ctxRemove">
+        <span>✅</span> <span>Gỡ chặn các số đã chọn</span>
+    </div>
     <div class="ctx-sep"></div>
-    <div class="ctx-item" id="ctxClose">❌ Đóng</div>
+    <div class="ctx-item text-muted" id="ctxClose">
+        <span>❌</span> <span>Đóng</span>
+    </div>
 </div>
 
-<div class="w-100 bg-dark text-center py-1" style="font-size: 12px; color: #adb5bd; border-top: 1px solid #495057;">
-    &copy; 2026 SIP Routing Tool | VNPT | Developed by <strong>Trần Hữu Minh</strong>
-</div>
+<footer class="app-footer">
+    <div>&copy; 2026 SIP Routing Tool | <b>VNPT SNOC2</b> | Phiên bản Web</div>
+    <div>Phát triển bởi: <a href="mailto:tranhuuminh@vnpt.vn">Trần Hữu Minh</a> (tranhuuminh@vnpt.vn)</div>
+</footer>
 
 <script>
     var socket = io({ transports: ['websocket', 'polling'] });
@@ -172,81 +234,87 @@
     socket.on('log', function(data) {
         if (data.node !== 'TSSN2D') return;
         var el = document.getElementById('logA');
-        var span = document.createElement('span');
-        span.textContent = data.msg;
-        span.className = 'log-' + data.type;
-        el.appendChild(span);
-        el.scrollTop = el.scrollHeight;
+        if (el) {
+            var span = document.createElement('span');
+            span.textContent = data.msg;
+            span.className = 'log-' + data.type + ' log-line';
+            el.appendChild(span);
+            el.scrollTop = el.scrollHeight;
+        }
     });
+
     socket.on('log_system', function(data) {
         var el = document.getElementById('logA');
-        var div = document.createElement('div');
-        div.textContent = '>>> ' + data.msg; div.style.color = 'yellow';
-        el.appendChild(div); el.scrollTop = el.scrollHeight;
+        if (el) {
+            var div = document.createElement('div');
+            div.textContent = '>>> ' + data.msg; 
+            div.className = 'log-system log-line';
+            el.appendChild(div); 
+            el.scrollTop = el.scrollHeight;
+        }
     });
+
     function clearLog() { document.getElementById('logA').innerHTML = ''; }
 
-    // Khóa nút khi đang chạy tác vụ SSH (Quét/Thực thi) để tránh thao tác chồng nhau
     function setBusy(b) {
         isBusy = b;
         document.getElementById('btnFetch').disabled = b;
         document.getElementById('btnAnalyze').disabled = b;
         var stop = document.getElementById('btnStop');
         stop.disabled = !b;
-        stop.className = b ? 'btn btn-danger fw-bold' : 'btn btn-secondary fw-bold';
         if (b) {
             document.getElementById('btnExecute').disabled = true;
             var r = document.getElementById('report');
             r.textContent = 'Đang chạy...';
-            r.className = 'alert alert-warning py-2 mb-2';
+            r.className = 'status-alert-box mb-2';
         }
     }
 
-    // --- FRESHNESS (cảnh báo cache cũ sau 3 phút) ---
+    // --- FRESHNESS ---
     function markFresh() {
         isFresh = true;
         lastScanTime = new Date().toLocaleTimeString();
         var h = document.getElementById('freshHeader');
         h.textContent = '✅ Dữ liệu thực (Cập nhật: ' + lastScanTime + ')';
-        h.style.color = '#198754';
+        h.style.color = '#15803d';
         if (freshTimer) clearTimeout(freshTimer);
         freshTimer = setTimeout(markStale, 180000); // 3 phút
     }
+
     function markStale() {
         isFresh = false;
         var h = document.getElementById('freshHeader');
-        h.textContent = '⚠️ Dữ liệu đã cũ' + (lastScanTime ? ' (Lần cuối quét: ' + lastScanTime + ')' : '') + ' — Hãy Quét lại trước khi thao tác';
-        h.style.color = '#dc3545';
-        blinkWarning(6);   // nhấp nháy cảnh báo (giống desktop _blink_warning)
+        h.textContent = '⚠️ Dữ liệu đã cũ' + (lastScanTime ? ' (Lần cuối: ' + lastScanTime + ')' : '') + ' — Hãy Quét lại';
+        h.style.color = '#dc2626';
+        blinkWarning(6);
     }
+
     function blinkWarning(count) {
         var h = document.getElementById('freshHeader');
-        if (count <= 0 || isFresh) { h.style.color = isFresh ? '#198754' : '#dc3545'; return; }
-        h.style.color = (count % 2) ? '#dc3545' : '#ffc107';   // đảo Đỏ/Vàng
+        if (count <= 0 || isFresh) { h.style.color = isFresh ? '#15803d' : '#dc2626'; return; }
+        h.style.color = (count % 2) ? '#dc2626' : '#f59e0b';
         setTimeout(function() { blinkWarning(count - 1); }, 400);
     }
 
-    // --- KHI MỞ TRANG: tự quét lần đầu / cảnh báo dữ liệu cũ (giống desktop mở tab A2P) ---
+    // --- KHI MỞ TRANG: tự quét lần đầu / cảnh báo dữ liệu cũ ---
     socket.on('connect', function() { socket.emit('a2p_init'); });
     socket.on('a2p_state', function(data) {
         allRows = data.rows || [];
         renderTable();
         if (data.fresh) {
-            // Có người vừa quét trong 3 phút -> hiện ngay cache, không cần quét lại
             document.getElementById('countLabel').textContent = '📊 ' + data.count + ' số đang chặn.';
             isFresh = true;
             lastScanTime = data.last_scan;
             var h = document.getElementById('freshHeader');
             h.textContent = '✅ Dữ liệu thực (Cập nhật: ' + data.last_scan + ')';
-            h.style.color = '#198754';
+            h.style.color = '#15803d';
             if (freshTimer) clearTimeout(freshTimer);
             freshTimer = setTimeout(markStale, Math.max(0, 180000 - (data.age_sec || 0) * 1000));
         } else {
-            // Cũ hoặc chưa từng quét -> tự động quét lại
             lastScanTime = data.last_scan || null;
             document.getElementById('countLabel').textContent = data.last_scan
-                ? ('⚠️ Dữ liệu cũ (lần cuối ' + data.last_scan + ') — đang quét lại...')
-                : 'Chưa có dữ liệu — đang quét lần đầu...';
+                ? ('⚠️ Dữ liệu cũ (lần cuối ' + data.last_scan + ') — đang quét...')
+                : 'Chưa có dữ liệu — đang quét...';
             fetchData();
         }
     });
@@ -254,11 +322,12 @@
     // --- FETCH ---
     function fetchData() {
         clearLog();
-        lastAdded = [];               // reset tô màu "vừa thêm" mỗi lần quét thủ công (như desktop)
+        lastAdded = [];
         setBusy(true);
         document.getElementById('countLabel').textContent = 'Đang quét...';
         socket.emit('run_a2p_fetch');
     }
+
     socket.on('a2p_blocklist', function(data) {
         if (data.rows === null) {
             document.getElementById('countLabel').textContent = '❌ Lỗi quét: ' + (data.error || '');
@@ -269,6 +338,7 @@
         document.getElementById('countLabel').textContent = '📊 ' + data.count + ' số đang chặn.';
         markFresh();
     });
+
     socket.on('a2p_fetch_finished', function() {
         setBusy(false);
     });
@@ -278,12 +348,12 @@
         var q = document.getElementById('search').value.trim();
         var tb = document.getElementById('tableBody');
         tb.innerHTML = '';
-        // Sắp xếp: mới nhất lên đầu, "Unknown" xuống đáy (giống desktop)
         var rows = allRows.slice().sort(function(a, b) {
             var ka = (String(a[1]).indexOf('Unknown') !== -1) ? '0000' : String(a[1]);
             var kb = (String(b[1]).indexOf('Unknown') !== -1) ? '0000' : String(b[1]);
-            return kb.localeCompare(ka);   // giảm dần; '0000' (Unknown) rơi xuống đáy
+            return kb.localeCompare(ka);
         });
+
         rows.forEach(function(r) {
             var num = r[0], date = r[1];
             if (q && num.indexOf(q) === -1) return;
@@ -294,13 +364,12 @@
             else if (String(date).indexOf('Unknown') !== -1) cls.push('row-unknown');
             if (selectedNums.has(num)) cls.push('selected');
             tr.className = cls.join(' ');
-            tr.innerHTML = '<td style="text-align:center;font-weight:bold">' + num + '</td>' +
-                           '<td style="text-align:center">' + date + '</td>' +
-                           '<td style="text-align:center"><button class="btn btn-sm btn-outline-danger py-0" onclick="event.stopPropagation(); addToDel(\'' + num + '\')">Gỡ</button></td>';
+            tr.innerHTML = '<td style="text-align:center; font-weight:bold; color:#1e293b;">' + num + '</td>' +
+                           '<td style="text-align:center; font-size:11px; color:#64748b;">' + date + '</td>' +
+                           '<td style="text-align:center;"><button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size:10.5px;" onclick="event.stopPropagation(); addToDel(\'' + num + '\')">Gỡ</button></td>';
             tr.addEventListener('click', function(e) { toggleSelect(num, e); });
             tr.addEventListener('contextmenu', function(e) {
                 e.preventDefault();
-                // Nếu số dưới con trỏ chưa được chọn -> chọn riêng nó; nếu đã thuộc -> giữ multi-select (giống desktop)
                 if (!selectedNums.has(num)) { selectedNums = new Set([num]); anchorNum = num; applySelectionClasses(); }
                 showCtxMenu(e.clientX, e.clientY);
             });
@@ -308,7 +377,6 @@
         });
     }
 
-    // Chọn dòng: click thường (đơn), Ctrl/Cmd+Click (toggle), Shift+Click (chọn dải theo thứ tự hiển thị)
     function toggleSelect(num, e) {
         if (e.ctrlKey || e.metaKey) {
             if (selectedNums.has(num)) selectedNums.delete(num); else selectedNums.add(num);
@@ -321,7 +389,7 @@
                 for (var i = lo; i <= hi; i++) selectedNums.add(order[i]);
             }
         } else {
-            if (selectedNums.size === 1 && selectedNums.has(num)) selectedNums = new Set();  // click lại -> bỏ chọn
+            if (selectedNums.size === 1 && selectedNums.has(num)) selectedNums = new Set();
             else selectedNums = new Set([num]);
             anchorNum = num;
         }
@@ -344,7 +412,7 @@
         }
     }
 
-    // --- MENU CHUỘT PHẢI (đẩy hàng loạt số đã chọn sang ô GỠ) ---
+    // --- MENU CHUỘT PHẢI ---
     function showCtxMenu(x, y) {
         var m = document.getElementById('ctxMenu');
         m.style.left = x + 'px';
@@ -352,7 +420,7 @@
         m.style.display = 'block';
     }
     function hideCtxMenu() { document.getElementById('ctxMenu').style.display = 'none'; }
-    document.addEventListener('click', hideCtxMenu);            // click ra ngoài -> đóng
+    document.addEventListener('click', hideCtxMenu);
     document.addEventListener('scroll', hideCtxMenu, true);
     document.getElementById('ctxClose').onclick = hideCtxMenu;
     document.getElementById('ctxRemove').onclick = function() {
@@ -364,24 +432,40 @@
         a2pAppendLog('Đã thêm ' + added + ' số vào ô GỠ.');
         hideCtxMenu();
     };
+
     function a2pAppendLog(msg) {
         var el = document.getElementById('logA');
-        var div = document.createElement('div');
-        div.textContent = '>>> ' + msg; div.style.color = '#d2a8ff';
-        el.appendChild(div); el.scrollTop = el.scrollHeight;
+        if (el) {
+            var div = document.createElement('div');
+            div.textContent = '>>> ' + msg; 
+            div.className = 'log-info log-line';
+            el.appendChild(div); 
+            el.scrollTop = el.scrollHeight;
+        }
     }
 
     // --- ANALYZE ---
     function analyze() {
-        if (isBusy) { alert('Đang chạy tác vụ khác, vui lòng đợi.'); return; }
+        if (isBusy) { showToast('Đang chạy tác vụ khác, vui lòng đợi.', 'warning'); return; }
         if (!isFresh) {
-            if (!confirm('⚠️ Dữ liệu có thể đã cũ (chưa quét trong vài phút).\nBạn có muốn QUÉT LẠI trước không?\n\n- OK: quét lại (rồi bấm Phân tích lần nữa)\n- Cancel: vẫn phân tích với dữ liệu hiện tại')) {
-                // Cancel -> vẫn phân tích tiếp
-            } else {
-                fetchData();
-                return;
-            }
+            showConfirm('Dữ liệu có thể đã cũ (chưa quét trong vài phút).\nBạn có muốn QUÉT LẠI trước không?', {
+                title: 'Cảnh báo dữ liệu Cache',
+                type: 'warning',
+                okText: 'Quét lại trước',
+                cancelText: 'Vẫn phân tích',
+                onOk: function() {
+                    fetchData();
+                },
+                onCancel: function() {
+                    doEmitAnalyze();
+                }
+            });
+            return;
         }
+        doEmitAnalyze();
+    }
+
+    function doEmitAnalyze() {
         document.getElementById('btnExecute').disabled = true;
         document.getElementById('report').textContent = 'Đang phân tích...';
         socket.emit('run_a2p_analyze', {
@@ -389,72 +473,119 @@
             del_text: document.getElementById('delBox').value
         });
     }
+
     socket.on('a2p_plan', function(data) {
         var reportEl = document.getElementById('report');
-        // Hỏi xác nhận nếu có số vừa THÊM vừa GỠ (đã ưu tiên GỠ, bỏ khỏi THÊM)
         if (data.conflict_removed && data.conflict_removed.length) {
             var cr = data.conflict_removed;
             var msg = '🔍 Phát hiện ' + cr.length + ' số vừa ở ô THÊM vừa ở ô GỠ:\n' +
                       cr.slice(0, 10).join('\n') + (cr.length > 10 ? '\n... và ' + (cr.length - 10) + ' số khác.' : '') +
-                      '\n\nĐã ưu tiên GỠ và bỏ các số này khỏi ô THÊM. Tiếp tục?';
-            if (!confirm(msg)) {
-                reportEl.textContent = 'Đã hủy phân tích do trùng lặp THÊM/GỠ.';
-                reportEl.className = 'alert alert-secondary py-2 mb-2';
-                planAdd = []; planDel = [];
-                document.getElementById('btnExecute').disabled = true;
-                return;
-            }
+                      '\n\nĐã ưu tiên GỠ và bỏ các số này khỏi ô THÊM. Bạn có muốn tiếp tục?';
+            
+            showConfirm(msg, {
+                title: 'Phát hiện số trùng lặp THÊM/GỠ',
+                type: 'warning',
+                okText: 'Tiếp tục',
+                cancelText: 'Hủy bỏ',
+                onOk: function() {
+                    applyPlanData(data);
+                },
+                onCancel: function() {
+                    reportEl.textContent = 'Đã hủy phân tích do trùng lặp THÊM/GỠ.';
+                    reportEl.className = 'status-alert-box mb-2';
+                    planAdd = []; planDel = [];
+                    document.getElementById('btnExecute').disabled = true;
+                }
+            });
+            return;
         }
+        applyPlanData(data);
+    });
+
+    function applyPlanData(data) {
+        var reportEl = document.getElementById('report');
         planAdd = data.final_add || [];
         planDel = data.final_del || [];
-        // AN TOÀN TUYỆT ĐỐI: nhập số để chặn nhưng tất cả đã được chặn từ trước
+
         if (data.all_safe) {
             reportEl.textContent = '✅ AN TOÀN TUYỆT ĐỐI: Bạn nhập ' + data.input_add_count + ' số, tất cả ĐÃ ĐƯỢC CHẶN từ trước.';
-            reportEl.className = 'alert alert-success py-2 mb-2';
+            reportEl.className = 'status-alert-box mb-2';
+            reportEl.style.backgroundColor = '#ecfdf5';
+            reportEl.style.borderColor = '#a7f3d0';
+            reportEl.style.color = '#065f46';
             document.getElementById('btnExecute').disabled = true;
             return;
         }
-        // Rebalance tự bù xóa -> đổ danh sách xóa cuối cùng vào ô GỠ cho minh bạch
+
         if (planDel.length) document.getElementById('delBox').value = planDel.join('\n');
         if (!data.can_execute) {
             reportEl.textContent = (data.report ? data.report + '\n\n' : '') + '✅ Không có lệnh mới cần chạy.';
-            reportEl.className = 'alert alert-secondary py-2 mb-2';
+            reportEl.className = 'status-alert-box mb-2';
             document.getElementById('btnExecute').disabled = true;
             return;
         }
         reportEl.textContent = (data.report || '') + '\n\n📋 Tổng ' + (data.commands ? data.commands.length : 0) + ' lệnh sẽ chạy.';
-        reportEl.className = 'alert alert-info py-2 mb-2';
+        reportEl.className = 'status-alert-box mb-2';
+        reportEl.style.backgroundColor = '#f0f9ff';
+        reportEl.style.borderColor = '#bae6fd';
+        reportEl.style.color = '#0369a1';
         document.getElementById('btnExecute').disabled = false;
-    });
+    }
 
     // --- EXECUTE ---
     function execute() {
-        if (!planAdd.length && !planDel.length) { alert('Chưa có kế hoạch. Hãy Phân tích trước.'); return; }
-        if (!confirm('Chạy chặn/gỡ trên TSSN2D?\n• THÊM: ' + planAdd.length + ' số\n• XÓA: ' + planDel.length + ' số')) return;
-        lastAdded = planAdd.slice();
-        setBusy(true);
-        document.getElementById('report').textContent = 'Đang thực thi...';
-        socket.emit('execute_a2p', { final_add: planAdd, final_del: planDel });
+        if (!planAdd.length && !planDel.length) { 
+            showToast('Chưa có kế hoạch. Hãy bấm Phân tích trước.', 'warning'); 
+            return; 
+        }
+        
+        var confirmMsg = 'Chạy chặn/gỡ trên TSSN2D?\n• THÊM: ' + planAdd.length + ' số\n• XÓA: ' + planDel.length + ' số';
+        showConfirm(confirmMsg, {
+            title: 'Xác nhận thực thi Chặn/Gỡ',
+            type: 'warning',
+            isDanger: true,
+            okText: 'Tiến hành chạy',
+            onOk: function() {
+                lastAdded = planAdd.slice();
+                setBusy(true);
+                document.getElementById('report').textContent = 'Đang thực thi...';
+                socket.emit('execute_a2p', { final_add: planAdd, final_del: planDel });
+            }
+        });
     }
+
     socket.on('a2p_finished', function(data) {
         if (data.ok) {
-            alert('✅ Đã chạy xong! Đang quét lại danh sách...');
-            // Dọn ô nhập + ô tìm + bỏ chọn + quét lại để cập nhật
+            showAlert('Đã hoàn tất thực thi chặn/gỡ! Hệ thống đang quét lại danh sách...', {
+                title: 'Thực thi thành công',
+                type: 'success'
+            });
             document.getElementById('addBox').value = '';
             document.getElementById('delBox').value = '';
             document.getElementById('search').value = '';
             planAdd = []; planDel = []; selectedNums = new Set(); anchorNum = null;
             fetchData();
         } else {
-            alert('❌ Thực thi thất bại hoặc bị dừng. Xem console.');
+            showAlert('Thực thi thất bại hoặc bị dừng. Vui lòng xem console.', {
+                title: 'Thực thi thất bại',
+                type: 'error'
+            });
             setBusy(false);
-            document.getElementById('btnExecute').disabled = false;  // cho phép thử lại
+            document.getElementById('btnExecute').disabled = false;
         }
     });
 
     function stopTask() {
-        // DỪNG riêng cho A2P (cách ly theo phiên) — không ảnh hưởng tab Định tuyến/UCTT của người khác
-        if (confirm('Dừng ngay lập tức?')) socket.emit('stop_a2p');
+        showConfirm('Bạn có chắc chắn muốn DỪNG ngay lập tức tác vụ A2P?', {
+            title: 'Dừng tiến trình A2P',
+            type: 'error',
+            isDanger: true,
+            okText: 'Dừng ngay',
+            onOk: function() {
+                socket.emit('stop_a2p');
+                showToast('Đã gửi tín hiệu dừng tác vụ', 'warning');
+            }
+        });
     }
 </script>
 </body>

@@ -2,130 +2,306 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Lịch sử Tác động</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lịch sử Tác động - SIP Routing Tool</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
     <style>
-        body { background: #f0f2f5; font-family: 'Segoe UI', sans-serif; }
-        .cmd-box { 
-            background: #0D1117; color: #56d364; font-family: 'Consolas', monospace; 
-            font-size: 0.8rem; padding: 8px; border-radius: 4px; white-space: pre-wrap;
-            max-height: 150px; overflow-y: auto;
+        body {
+            background-color: var(--bg-page);
+            font-family: var(--font-sans);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .history-wrap-scroll {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+            padding-bottom: 12px;
+        }
+        .history-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 13px;
+        }
+        .history-table th {
+            position: sticky;
+            top: 0;
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 700;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-color);
+            z-index: 10;
+        }
+        .history-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+        .history-table tbody tr:hover td {
+            background-color: #f8fafc;
+        }
+        .cmd-display-box {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: #0f766e;
+            background: #f0fdfa;
+            padding: 5px 10px;
+            border-radius: 4px;
+            border: 1px solid #ccfbf1;
+            white-space: pre-wrap;
+            max-height: 95px;
+            overflow-y: auto;
         }
     </style>
 </head>
-<script>
-    function filterTable() {
-        // Lấy chữ đang gõ và chuyển thành chữ thường
-        var input = document.getElementById("searchInput");
-        var filter = input.value.toLowerCase();
-        
-        // Lấy tất cả các dòng (tr) trong thân bảng
-        var tbody = document.querySelector("tbody");
-        var trs = tbody.getElementsByTagName("tr");
-        
-        for (var i = 0; i < trs.length; i++) {
-            // Bỏ qua dòng thông báo "Chưa có lịch sử"
-            if (trs[i].cells.length < 3) continue;
-            
-            // Lấy nội dung của Cột 2 (index 1) và Cột 3 (index 2)
-            var userText = trs[i].cells[1].textContent || trs[i].cells[1].innerText;
-            var actionText = trs[i].cells[2].textContent || trs[i].cells[2].innerText;
-            
-            // Ghép 2 nội dung lại để tìm kiếm chung
-            var searchableText = userText + " " + actionText;
-            
-            // Kiểm tra xem chuỗi ghép có chứa từ khóa không
-            if (searchableText.toLowerCase().indexOf(filter) > -1) {
-                trs[i].style.display = ""; // Có chữ -> Hiện
-            } else {
-                trs[i].style.display = "none"; // Không có chữ -> Ẩn
-            }
-        }
-    }
-</script>
 <body>
 
 {% include '_navbar.html' %}
 
-<div class="container-fluid px-4">
-    <div class="d-flex justify-content-between align-items-center mb-3 mt-3">
-        <h4 class="text-primary mb-0">🕒 Lịch sử Tác động</h4>
-        
-        <form class="d-flex align-items-center gap-2" method="GET" action="{{ url_for('view_history') }}">
-            <input class="form-control form-control-sm" type="date" name="start_date" value="{{ start_date }}" title="Từ ngày">
-            <span class="text-muted fw-bold">-</span>
-            <input class="form-control form-control-sm" type="date" name="end_date" value="{{ end_date }}" title="Đến ngày">
-
-            <input id="searchInput" class="form-control form-control-sm" type="search" name="q" 
-                   placeholder="Từ khóa..." value="{{ search_query }}" onkeyup="filterTable()" style="width: 200px;">
-            
-            <button class="btn btn-sm btn-primary fw-bold text-nowrap" type="submit">Lọc DB</button>
-            
-            {% if search_query or start_date or end_date %}
-                <a href="{{ url_for('view_history') }}" class="btn btn-sm btn-outline-secondary text-nowrap">Hủy</a>
-            {% endif %}
-            
-            <a href="{{ url_for('export_history', q=search_query, start_date=start_date, end_date=end_date) }}" class="btn btn-sm btn-success fw-bold ms-2 text-nowrap">
-                📥 Xuất CSV
-            </a>
-        </form>
-    </div>
+<div class="container-fluid px-3 flex-grow-1 d-flex flex-column overflow-hidden" style="min-height: 0;">
     
-    <div class="card shadow-sm">
-        <div class="card-body p-0">
-            <table class="table table-hover mb-0 align-middle">
-				<thead class="table-dark">
-					<tr>
-						<th style="width: 15%;">Thời gian</th>
-						<th style="width: 15%;">Người thực hiện</th>
-						<th style="width: 70%;">Nội dung thao tác</th>
-					</tr>
-				</thead>
-				<tbody>
-					{% for log in pagination.items %}
-					<tr>
-						<td class="text-muted">{{ log.timestamp.strftime('%d/%m/%Y %H:%M') }}</td>
-						<td><span class="badge bg-secondary">{{ log.username }}</span></td>
-						<td>
-							<div class="fw-bold text-dark" style="white-space: pre-wrap;">{{ log.commands }}</div>
-						</td>
-					</tr>
-					{% endfor %}
-				</tbody>
-			</table>
+    <!-- THANH ĐIỀU KHIỂN & BỘ LỌC THÔNG MINH -->
+    <div class="pro-card mb-2">
+        <!-- Hàng 1: Tiêu đề + Chọn mốc thời gian nhanh + Xuất CSV -->
+        <div class="card-head py-2">
+            <div class="card-head-title d-flex align-items-center gap-2">
+                <span>🕒 Lịch sử Tác động & Nhật ký Hệ thống</span>
+                <span class="badge bg-light text-primary border fw-bold" style="font-size: 11px;">
+                    {{ pagination.total }} bản ghi
+                </span>
+            </div>
+            
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <!-- Nhóm nút chọn nhanh thời gian -->
+                <div class="date-preset-group">
+                    <button type="button" class="date-preset-btn" onclick="applyDatePreset('today')">Hôm nay</button>
+                    <button type="button" class="date-preset-btn" onclick="applyDatePreset('yesterday')">Hôm qua</button>
+                    <button type="button" class="date-preset-btn" onclick="applyDatePreset('3days')">3 ngày</button>
+                    <button type="button" class="date-preset-btn" onclick="applyDatePreset('7days')">7 ngày</button>
+                    <button type="button" class="date-preset-btn" onclick="applyDatePreset('30days')">30 ngày</button>
+                    <button type="button" class="date-preset-btn" onclick="applyDatePreset('all')">Tất cả</button>
+                </div>
+
+                <a href="{{ url_for('export_history', q=search_query, start_date=start_date, end_date=end_date) }}" class="btn btn-sm btn-success fw-bold text-nowrap d-inline-flex align-items-center gap-1" style="height: 30px; padding: 0 12px; font-size: 12px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    <span>Xuất CSV</span>
+                </a>
+            </div>
         </div>
-		<div class="d-flex justify-content-between align-items-center mt-3 mb-4">
-        <div class="text-muted small">
-            Hiển thị trang {{ pagination.page }} / {{ pagination.pages }} (Tổng cộng {{ pagination.total }} thao tác)
-        </div>
-        
-        <nav>
-            <ul class="pagination pagination-sm mb-0">
-                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('view_history', page=pagination.prev_num, q=search_query) }}">« Trước</a>
-                </li>
-                
-                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
-                    {% if page_num %}
-                        {% if pagination.page == page_num %}
-                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
-                        {% else %}
-                            <li class="page-item"><a class="page-link" href="{{ url_for('view_history', page=page_num, q=search_query) }}">{{ page_num }}</a></li>
-                        {% endif %}
-                    {% else %}
-                        <li class="page-item disabled"><span class="page-link">...</span></li>
+
+        <!-- Hàng 2: Form Lọc Chi Tiết (Từ ngày, Đến ngày, Từ khóa, Nút Lọc) -->
+        <div class="card-body py-2">
+            <form id="historyFilterForm" class="d-flex align-items-center justify-content-between flex-wrap gap-2 m-0" method="GET" action="{{ url_for('view_history') }}">
+                <div class="d-flex align-items-center gap-2 flex-wrap flex-grow-1">
+                    
+                    <!-- Date Group: Từ ngày -->
+                    <div class="date-input-group">
+                        <label for="startDateInput">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                            <span>Từ ngày:</span>
+                        </label>
+                        <input id="startDateInput" type="date" name="start_date" value="{{ start_date }}" title="Chọn ngày bắt đầu">
+                    </div>
+
+                    <span class="text-muted fw-bold" style="font-size: 12px;">➔</span>
+
+                    <!-- Date Group: Đến ngày -->
+                    <div class="date-input-group">
+                        <label for="endDateInput">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                            <span>Đến ngày:</span>
+                        </label>
+                        <input id="endDateInput" type="date" name="end_date" value="{{ end_date }}" title="Chọn ngày kết thúc">
+                    </div>
+
+                    <!-- Search Input -->
+                    <div class="input-editor-wrapper flex-grow-1" style="max-width: 420px;">
+                        <input id="searchInput" class="code-textarea py-1 px-3" style="font-family: var(--font-sans); height: 34px; font-size: 12px;" type="search" name="q" 
+                               placeholder="🔍 Lọc nhanh theo User, B-Number hoặc lệnh MML..." value="{{ search_query }}" onkeyup="filterTable()">
+                    </div>
+                    
+                    <!-- Submit Filter Button -->
+                    <button class="btn btn-primary fw-bold text-nowrap d-inline-flex align-items-center gap-1" style="height: 34px; padding: 0 16px; font-size: 12.5px;" type="submit">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <span>Lọc Database</span>
+                    </button>
+                    
+                    {% if search_query or start_date or end_date %}
+                        <a href="{{ url_for('view_history') }}" class="btn btn-outline-secondary text-nowrap d-inline-flex align-items-center gap-1" style="height: 34px; padding: 0 12px; font-size: 12px;">
+                            <span>↺ Đặt lại</span>
+                        </a>
                     {% endif %}
-                {% endfor %}
-                
-                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('view_history', page=pagination.next_num, q=search_query) }}">Sau »</a>
-                </li>
-            </ul>
-        </nav>
+                </div>
+            </form>
+        </div>
     </div>
+
+    <!-- BẢNG AUDIT LOG -->
+    <div class="pro-card flex-grow-1 mb-2 d-flex flex-column" style="min-height: 0;">
+        <div class="history-wrap-scroll p-0">
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th style="width: 16%;">Thời gian thực hiện</th>
+                        <th style="width: 14%;">Người thực hiện</th>
+                        <th style="width: 62%;">Khối lệnh MML đã thực thi</th>
+                        <th style="width: 8%; text-align: center;">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody">
+                    {% for log in pagination.items %}
+                    <tr>
+                        <td class="text-muted" style="font-size: 12px; font-family: var(--font-mono); font-weight: 600;">
+                            {{ log.timestamp.strftime('%d/%m/%Y %H:%M:%S') }}
+                        </td>
+                        <td>
+                            <span class="badge-status ok" style="font-size: 11.5px;">👤 {{ log.username }}</span>
+                        </td>
+                        <td>
+                            <div class="cmd-display-box" id="cmd-{{ log.id }}">{{ log.commands }}</div>
+                        </td>
+                        <td style="text-align: center;">
+                            <button type="button" class="btn-action-sm py-1 px-2" style="font-size: 11px;" onclick="copyLogCmd('cmd-{{ log.id }}')">
+                                📋 Sao chép
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-4">Chưa có lịch sử tác động nào khớp với bộ lọc.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- PHÂN TRANG -->
+        <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top bg-light" style="font-size: 12px; color: #64748b;">
+            <div>
+                Hiển thị trang <b>{{ pagination.page }}</b> / <b>{{ pagination.pages }}</b> (Tổng cộng <b>{{ pagination.total }}</b> thao tác)
+            </div>
+            
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('view_history', page=pagination.prev_num, q=search_query, start_date=start_date, end_date=end_date) }}">« Trước</a>
+                    </li>
+                    
+                    {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page_num %}
+                            {% if pagination.page == page_num %}
+                                <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+                            {% else %}
+                                <li class="page-item"><a class="page-link" href="{{ url_for('view_history', page=page_num, q=search_query, start_date=start_date, end_date=end_date) }}">{{ page_num }}</a></li>
+                            {% endif %}
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('view_history', page=pagination.next_num, q=search_query, start_date=start_date, end_date=end_date) }}">Sau »</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
     </div>
+
 </div>
 
+<footer class="app-footer">
+    <div>&copy; 2026 SIP Routing Tool | <b>VNPT SNOC2</b> | Phiên bản Web</div>
+    <div>Phát triển bởi: <a href="mailto:tranhuuminh@vnpt.vn">Trần Hữu Minh</a> (tranhuuminh@vnpt.vn)</div>
+</footer>
+
+<script>
+    // Format YYYY-MM-DD cho date input
+    function formatDate(d) {
+        var month = '' + (d.getMonth() + 1),
+            day = '' + d.getDate(),
+            year = d.getFullYear();
+        if (month.length < 2) month = '0' + month;
+        if (day.length < 2) day = '0' + day;
+        return [year, month, day].join('-');
+    }
+
+    // Chọn nhanh khoảng ngày và tự động submit lọc
+    function applyDatePreset(preset) {
+        var startInput = document.getElementById('startDateInput');
+        var endInput = document.getElementById('endDateInput');
+        var now = new Date();
+        var todayStr = formatDate(now);
+
+        document.querySelectorAll('.date-preset-btn').forEach(function(btn){ btn.classList.remove('active'); });
+
+        if (preset === 'today') {
+            startInput.value = todayStr;
+            endInput.value = todayStr;
+        } else if (preset === 'yesterday') {
+            var yest = new Date();
+            yest.setDate(now.getDate() - 1);
+            var yestStr = formatDate(yest);
+            startInput.value = yestStr;
+            endInput.value = yestStr;
+        } else if (preset === '3days') {
+            var d3 = new Date();
+            d3.setDate(now.getDate() - 2);
+            startInput.value = formatDate(d3);
+            endInput.value = todayStr;
+        } else if (preset === '7days') {
+            var d7 = new Date();
+            d7.setDate(now.getDate() - 6);
+            startInput.value = formatDate(d7);
+            endInput.value = todayStr;
+        } else if (preset === '30days') {
+            var d30 = new Date();
+            d30.setDate(now.getDate() - 29);
+            startInput.value = formatDate(d30);
+            endInput.value = todayStr;
+        } else if (preset === 'all') {
+            startInput.value = '';
+            endInput.value = '';
+        }
+
+        // Tự động submit form lọc
+        document.getElementById('historyFilterForm').submit();
+    }
+
+    function filterTable() {
+        var input = document.getElementById("searchInput");
+        var filter = input.value.toLowerCase();
+        var tbody = document.getElementById("historyBody");
+        var trs = tbody.getElementsByTagName("tr");
+        
+        for (var i = 0; i < trs.length; i++) {
+            if (trs[i].cells.length < 3) continue;
+            var userText = trs[i].cells[1].textContent || trs[i].cells[1].innerText;
+            var actionText = trs[i].cells[2].textContent || trs[i].cells[2].innerText;
+            var searchableText = userText + " " + actionText;
+            
+            if (searchableText.toLowerCase().indexOf(filter) > -1) {
+                trs[i].style.display = "";
+            } else {
+                trs[i].style.display = "none";
+            }
+        }
+    }
+
+    function copyLogCmd(elementId) {
+        var el = document.getElementById(elementId);
+        if (el) {
+            navigator.clipboard.writeText(el.innerText);
+            showToast("Đã sao chép khối lệnh vào Clipboard!", "success");
+        }
+    }
+</script>
 </body>
 </html>

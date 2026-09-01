@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIP Routing Suite - Giao diện Toàn Diện Chuẩn Telco NOC</title>
+    <style>
+        /* ==========================================================================
+           DESIGN SYSTEM (TELCO NOC PRO - LIGHT THEME)
+           ========================================================================== */
+        :root {
+            --primary: #1e40af;
+            --primary-hover: #1d4ed8;
+            --primary-light: #eff6ff;
+            --accent: #2563eb;
+            --accent-gradient: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            
+            --bg-page: #f1f5f9;
+            --bg-card: #ffffff;
+            --bg-subtle: #f8fafc;
+            
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --text-light: #94a3b8;
+            
+            --border-color: #e2e8f0;
+            --border-focus: #3b82f6;
+            
+            --success: #059669;
+            --success-bg: #ecfdf5;
+            --success-border: #a7f3d0;
+            
+            --warning: #d97706;
+            --warning-bg: #fffbeb;
+            --warning-border: #fde68a;
+            
+            --danger: #dc2626;
+            --danger-bg: #fef2f2;
+            --danger-border: #fecaca;
+            
+            --info: #0284c7;
+            --info-bg: #f0f9ff;
+            --info-border: #bae6fd;
+            
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            
+            --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+            --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.08);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+            
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            --font-mono: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-page);
+            color: var(--text-main);
+            font-size: 13px;
+            line-height: 1.45;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ==========================================================================
+           HEADER & NAVIGATION BAR
+           ========================================================================== */
+        .app-navbar {
+            background: #0f172a;
+            color: #ffffff;
+            height: 50px;
+            padding: 0 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            z-index: 100;
+        }
+
+        .nav-brand-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .nav-logo-badge {
+            background: var(--accent-gradient);
+            color: white;
+            font-weight: 800;
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .nav-title {
+            font-weight: 700;
+            font-size: 14.5px;
+            letter-spacing: 0.3px;
+            color: #ffffff;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-title span {
+            color: #60a5fa;
+            font-weight: 500;
+            font-size: 11.5px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: 24px;
+        }
+
+        .nav-item {
+            color: #94a3b8;
+            text-decoration: none;
+            padding: 6px 13px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .nav-item:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .nav-item.active {
+            color: #ffffff;
+            background: #2563eb;
+            font-weight: 600;
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+        }
+
+        .nav-status-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .node-status-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            padding: 3px 9px;
+            border-radius: 20px;
+            font-size: 11px;
+            color: #cbd5e1;
+            font-family: var(--font-mono);
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background-color: #10b981;
+            box-shadow: 0 0 8px #10b981;
+            animation: pulse-green 2s infinite;
+        }
+
+        @keyframes pulse-green {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.7; }
+        }
+
+        .user-dropdown-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #ffffff;
+            padding: 4px 10px;
+            border-radius: var(--radius-sm);
+            font-size: 12.5px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+
+        /* ==========================================================================
+           TAB VIEWS WRAPPER
+           ========================================================================== */
+        .tab-content-area {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .tab-pane {
+            display: none;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .tab-pane.active {
+            display: flex;
+        }
+
+        /* ==========================================================================
+           COMMON WORKSPACE & CARD STYLES
+           ========================================================================== */
+        .app-workspace {
+            flex: 1;
+            display: flex;
+            gap: 10px;
+            padding: 10px 14px;
+            overflow: hidden;
+            min-height: 0;
+            width: 100%;
+        }
+
+        .col-flow {
+            flex: 1.15;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-right: 4px;
+            min-width: 540px;
+        }
+
+        .col-telemetry {
+            flex: 0.85;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 400px;
+            overflow: hidden;
+        }
+
+        .pro-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-xs);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            overflow: hidden;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .pro-card:hover {
+            border-color: #cbd5e1;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .card-head {
+            padding: 8px 12px;
+            background: var(--bg-subtle);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .card-head-title {
+            font-weight: 700;
+            font-size: 13px;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .step-badge {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .card-body {
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        /* Common Code & Input Styles */
+        .code-textarea {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            outline: none;
+            resize: vertical;
+            font-family: var(--font-mono);
+            font-size: 12.5px;
+            line-height: 1.45;
+            color: #1e293b;
+            background: #ffffff;
+            display: block;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        .code-textarea:focus {
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+
+        .btn-quick-tag {
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            color: #334155;
+            padding: 3px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all 0.12s ease;
+        }
+        .btn-quick-tag:hover { background: #e2e8f0; color: #0f172a; }
+
+        .btn-action-sm {
+            padding: 4px 10px;
+            font-size: 11.5px;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            background: #ffffff;
+            color: #334155;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.15s ease;
+        }
+        .btn-action-sm:hover { background: #f1f5f9; border-color: #94a3b8; }
+
+        /* General Buttons */
+        .btn-step1 {
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            color: white; border: none; padding: 8px 14px; border-radius: var(--radius-sm);
+            font-weight: 700; font-size: 13px; cursor: pointer; box-shadow: 0 2px 6px rgba(2, 132, 199, 0.35);
+            display: flex; align-items: center; justify-content: center; gap: 7px;
+        }
+        .btn-step1:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(2, 132, 199, 0.45); }
+
+        .btn-analyze {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: #ffffff; border: none; padding: 9px 16px; border-radius: var(--radius-sm);
+            font-weight: 700; font-size: 13.5px; cursor: pointer; box-shadow: 0 2px 6px rgba(245, 158, 11, 0.35);
+            display: flex; align-items: center; justify-content: center; gap: 7px;
+            transition: all 0.15s ease; width: 100%;
+        }
+        .btn-analyze:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(245, 158, 11, 0.45); }
+
+        .btn-step2 {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: white; border: none; padding: 9px 16px; border-radius: var(--radius-sm);
+            font-weight: 700; font-size: 13.5px; cursor: pointer; box-shadow: 0 3px 8px rgba(37, 99, 235, 0.35);
+            display: flex; align-items: center; justify-content: center; gap: 8px; flex: 1;
+        }
+        .btn-step2:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 5px 12px rgba(37, 99, 235, 0.45); }
+
+        .btn-danger-action {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white; border: none; padding: 9px 16px; border-radius: var(--radius-sm);
+            font-weight: 700; font-size: 13.5px; cursor: pointer; box-shadow: 0 3px 8px rgba(220, 38, 38, 0.35);
+            display: flex; align-items: center; justify-content: center; gap: 8px; flex: 1;
+        }
+        .btn-danger-action:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 5px 12px rgba(220, 38, 38, 0.45); }
+
+        .btn-stop {
+            background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; padding: 9px 16px;
+            border-radius: var(--radius-sm); font-weight: 700; font-size: 13px; cursor: pointer;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .btn-stop:hover:not(:disabled) { background: #dc2626; color: white; }
+
+        /* Status Grid Table */
+        .status-grid { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; font-family: var(--font-mono); }
+        .status-grid th { position: sticky; top: 0; background: #f8fafc; color: #475569; font-weight: 700; font-size: 11px; padding: 6px 8px; border-bottom: 1px solid var(--border-color); z-index: 10; text-align: left; }
+        .status-grid td { padding: 5px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        .status-grid tbody tr { cursor: pointer; }
+        .status-grid tbody tr:hover td { background-color: #f1f5f9; }
+        .status-grid tbody tr.selected td { background-color: #e0f2fe !important; }
+
+        .badge-status { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+        .badge-status.ok { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+        .badge-status.inherited { background: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
+        .badge-status.missing { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+        .badge-status.warn { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+
+        /* Terminal Console */
+        .terminal-container { display: flex; flex-direction: column; height: 100%; background: #0f172a; border-radius: var(--radius-md); box-shadow: var(--shadow-md); border: 1px solid #1e293b; overflow: hidden; }
+        .terminal-top-header { background: #1e293b; padding: 7px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #334155; color: #e2e8f0; }
+        .terminal-title { font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 7px; color: #60a5fa; font-family: var(--font-mono); }
+        .terminal-tabs { display: flex; align-items: center; gap: 4px; background: #0f172a; padding: 2px; border-radius: 6px; }
+        .term-tab-btn { background: transparent; border: none; color: #94a3b8; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-family: var(--font-mono); }
+        .term-tab-btn.active { background: #2563eb; color: #ffffff; }
+        .terminal-views-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+        .terminal-split-box { flex: 1; display: flex; flex-direction: column; min-height: 0; border-bottom: 1px solid #334155; }
+        .node-sub-head { background: #182234; padding: 4px 10px; font-size: 11px; font-family: var(--font-mono); font-weight: 700; color: #93c5fd; display: flex; justify-content: space-between; border-bottom: 1px solid #1e293b; }
+        .node-sub-head.node-d { color: #fca5a5; }
+        .btn-term-clear { color: #94a3b8; font-size: 10.5px; cursor: pointer; text-decoration: none; }
+        .btn-term-clear:hover { color: #f87171; }
+        .terminal-output { flex: 1; padding: 8px 10px; overflow-y: auto; font-family: var(--font-mono); font-size: 11.5px; line-height: 1.5; color: #cbd5e1; white-space: pre-wrap; background: #090d16; }
+        .log-line { display: block; margin-bottom: 1px; }
+        .log-time { color: #64748b; font-size: 10.5px; margin-right: 6px; }
+        .log-cmd { color: #60a5fa; font-weight: 600; }
+        .log-success { color: #34d399; }
+        .log-error { color: #f87171; font-weight: 600; }
+        .log-system { color: #fbbf24; }
+
+        /* ==========================================================================
+           TAB 3: CHẶN A2P CHUẨN ĐẦY ĐỦ LOGIC THỰC TẾ (3-COLUMN TELCO NOC)
+           ========================================================================== */
+        .a2p-layout {
+            display: grid;
+            grid-template-columns: 420px 1fr 380px;
+            gap: 10px;
+            height: 100%;
+            width: 100%;
+            padding: 10px 14px;
+            overflow: hidden;
+        }
+
+        .a2p-col-left {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            height: 100%;
+            overflow-y: auto;
+            min-height: 0;
+        }
+
+        .a2p-col-mid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            height: 100%;
+            overflow-y: auto;
+            min-height: 0;
+        }
+
+        .status-alert-box {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-left: 4px solid #f59e0b;
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            font-weight: 600;
+            color: #92400e;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Footer */
+        .app-footer {
+            height: 26px;
+            background: #ffffff;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 18px;
+            font-size: 11px;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        .toast-notify {
+            position: fixed; bottom: 35px; right: 25px; background: #1e293b; color: white;
+            padding: 10px 16px; border-radius: var(--radius-sm); box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+            font-size: 13px; display: flex; align-items: center; gap: 10px; z-index: 9999;
+            transform: translateY(100px); opacity: 0; transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            border-left: 4px solid var(--accent);
+        }
+        .toast-notify.show { transform: translateY(0); opacity: 1; }
+    </style>
+</head>
+<body>
+
+<!-- TOP NAVIGATION BAR -->
+<nav class="app-navbar">
+    <div class="nav-brand-group">
+        <div class="nav-logo-badge">
+            SNOC2
+        </div>
+        <a class="nav-title" href="#">
+            SIP ROUTING SUITE
+            <span>vIMS / AA NOC</span>
+        </a>
+
+        <div class="nav-links">
+            <div class="nav-item" id="tabNav-route" onclick="switchMainTab('route')">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>
+                Định tuyến
+            </div>
+            <div class="nav-item" id="tabNav-uctt" onclick="switchMainTab('uctt')">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                Ứng cứu 11x
+            </div>
+            <div class="nav-item active" id="tabNav-a2p" onclick="switchMainTab('a2p')">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+                Chặn A2P
+            </div>
+            <div class="nav-item" id="tabNav-history" onclick="switchMainTab('history')">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+                Lịch sử
+            </div>
+        </div>
+    </div>
+
+    <div class="nav-status-group">
+        <div class="node-status-pill" title="Node TSSE2C Online"><span class="status-dot"></span><span>TSSE2C</span></div>
+        <div class="node-status-pill" title="Node TSSE2D Online"><span class="status-dot"></span><span>TSSE2D</span></div>
+        <div class="node-status-pill" title="Node TSSN2D Online"><span class="status-dot" style="background-color:#38bdf8; box-shadow:0 0 8px #38bdf8;"></span><span>TSSN2D</span></div>
+
+        <button class="user-dropdown-btn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <span>minhth (Admin)</span>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+    </div>
+</nav>
+
+<!-- MAIN CONTAINER FOR 4 TABS -->
+<div class="tab-content-area">
+
+    <!-- ========================================================================
+         TAB 3: CHẶN A2P (TSSN2D) - ĐẦY ĐỦ 100% CÁC KHỐI CHỨC NĂNG KHOANH ĐỎ
+         ======================================================================== -->
+    <div class="tab-pane active" id="pane-a2p">
+        <div class="a2p-layout">
+            
+            <!-- CỘT 1: DANH SÁCH SỐ ĐANG CHẶN + FORM NHẬP JSON ADMIN (KHOANH ĐỎ 1) -->
+            <div class="a2p-col-left">
+                
+                <!-- Card 1.1: Quét và danh sách số đang chặn -->
+                <div class="pro-card" style="flex:1; display:flex; flex-direction:column; min-height:360px;">
+                    <div class="card-head">
+                        <div class="card-head-title" id="freshHeader" style="color:#d97706;">
+                            ⚠️ Dữ liệu cache — Hãy bấm Quét để lấy mới
+                        </div>
+                    </div>
+                    <div class="card-body" style="flex:1; display:flex; flex-direction:column;">
+                        <button class="btn-step1" style="width:100%; margin-bottom:4px;" onclick="showToast('Đang quét toàn bộ số đang chặn trên Node TSSN2D...', 'info')">
+                            1. Quét toàn bộ số ĐANG CHẶN trên Node
+                        </button>
+                        
+                        <input type="text" id="a2pSearch" class="code-textarea" style="height:32px; padding:4px 8px; margin-bottom:2px;" placeholder="🔍 Tìm nhanh số...">
+                        <div style="font-size:11px; color:#64748b; margin-bottom:4px;">
+                            💡 Chọn nhiều dòng (Ctrl/Shift + click) rồi <b>chuột phải</b> để gỡ hàng loạt.
+                        </div>
+
+                        <!-- Bảng số đang chặn -->
+                        <div style="flex:1; overflow-y:auto; border:1px solid var(--border-color); border-radius:var(--radius-sm); background:#fff;">
+                            <table class="status-grid">
+                                <thead>
+                                    <tr>
+                                        <th style="width:50%;">Số điện thoại</th>
+                                        <th style="width:35%;">Ngày chặn (Log)</th>
+                                        <th style="width:15%; text-align:center;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="selected">
+                                        <td style="font-weight:700; color:#dc2626;">0912345678</td>
+                                        <td style="color:#64748b; font-size:11px;">2026-08-30 14:20</td>
+                                        <td style="text-align:center;"><button class="btn-action-sm" style="padding:1px 6px; font-size:10.5px; color:#dc2626;">Gỡ</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:700; color:#dc2626;">0918889999</td>
+                                        <td style="color:#64748b; font-size:11px;">2026-08-31 09:15</td>
+                                        <td style="text-align:center;"><button class="btn-action-sm" style="padding:1px 6px; font-size:10.5px; color:#dc2626;">Gỡ</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:700; color:#dc2626;">0888123456</td>
+                                        <td style="color:#64748b; font-size:11px;">2026-09-01 10:00</td>
+                                        <td style="text-align:center;"><button class="btn-action-sm" style="padding:1px 6px; font-size:10.5px; color:#dc2626;">Gỡ</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div style="font-size:11px; color:#64748b; margin-top:4px;">📊 3 số đang chặn.</div>
+                    </div>
+                </div>
+
+                <!-- Card 1.2: [KHOANH ĐỎ 1] Nhập lịch sử chặn từ JSON (admin) -->
+                <div class="pro-card">
+                    <div class="card-head">
+                        <div class="card-head-title">⬆️ Nhập lịch sử chặn từ JSON (admin)</div>
+                    </div>
+                    <div class="card-body">
+                        <form style="display:flex; gap:6px; align-items:center;">
+                            <input type="file" accept=".json,application/json" class="code-textarea" style="height:32px; padding:3px 6px; font-size:11.5px; flex:1;" required>
+                            <button type="button" class="btn-action-sm" style="height:32px; background:#475569; color:white; border-color:#475569;" onclick="showToast('Đã nhập file JSON vào CSDL!', 'success')">
+                                Nhập
+                            </button>
+                        </form>
+                        <div style="font-size:11px; color:#64748b; margin-top:2px;">
+                            File dạng <code>{"số":"ngày"}</code> (a2p_history.json cũ). Số trùng → cập nhật ngày; số mới → thêm.
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- CỘT 2: [KHOANH ĐỎ 2 & 3] TÁC VỤ CHẶN / GỠ -->
+            <div class="a2p-col-mid">
+                <div class="pro-card" style="height:100%;">
+                    <div class="card-head">
+                        <div class="card-head-title">⚙️ Tác vụ Chặn / Gỡ</div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Ô 1: Chặn thêm -->
+                        <div>
+                            <label style="font-weight:700; font-size:12px; color:#334155; margin-bottom:3px; display:block;">
+                                Nhập số cần CHẶN THÊM (mỗi dòng 1 số):
+                            </label>
+                            <textarea id="addBox" class="code-textarea" rows="6" placeholder="Mỗi dòng 1 số. Tự cắt số 0 hoặc 84 ở đầu. VD: 012345 hoặc 8412345 → chặn 12345"></textarea>
+                        </div>
+
+                        <!-- Ô 2: [KHOANH ĐỎ 2] Nhập số cần GỠ CHẶN -->
+                        <div>
+                            <label style="font-weight:700; font-size:12px; color:#b91c1c; margin-bottom:3px; display:block;">
+                                Nhập số cần GỠ CHẶN:
+                            </label>
+                            <textarea id="delBox" class="code-textarea" rows="4" style="border-color:#fecaca; background:#fffafb;" placeholder="Chọn số bên trái → chuột phải → 'Gỡ chặn'; hoặc dán thủ công mỗi dòng 1 số. Tự cắt số 0 hoặc 84 ở đầu, chỉ gỡ số đang chặn..."></textarea>
+                        </div>
+
+                        <!-- Nút [KHOANH ĐỎ 3] 2. Phân tích & Tạo lệnh -->
+                        <button id="btnAnalyze" class="btn-analyze" onclick="showToast('Đang phân tích & tạo khối lệnh chặn/gỡ...', 'warning')">
+                            2. Phân tích & Tạo lệnh
+                        </button>
+
+                        <!-- Trạng thái báo cáo / Report alert -->
+                        <div class="status-alert-box" id="report">
+                            <span>ℹ️ Trạng thái: Sẵn sàng</span>
+                        </div>
+
+                        <!-- 3. Tiến hành chặn/gỡ + DỪNG -->
+                        <div style="display:flex; gap:8px; margin-top:auto;">
+                            <button id="btnExecute" class="btn-danger-action" disabled onclick="showToast('Bắt đầu chạy SSH chặn/gỡ trên TSSN2D!', 'error')">
+                                3. Tiến hành chặn/gỡ
+                            </button>
+                            <button id="btnStop" class="btn-stop" disabled>
+                                ⏹ DỪNG
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CỘT 3: SSH CONSOLE TSSN2D -->
+            <div class="terminal-container">
+                <div class="terminal-top-header">
+                    <div class="terminal-title">📡 Console TSSN2D (10.204.161.61)</div>
+                    <span class="btn-term-clear" onclick="showToast('Đã xóa log', 'info')">🗑️ Xóa Log</span>
+                </div>
+                <div class="terminal-output">
+                    <span class="log-line"><span class="log-time">[16:40:00]</span><span class="log-system">>>> Sẵn sàng kết nối SSH Node TSSN2D...</span></span>
+                    <span class="log-line"><span class="log-time">[16:40:05]</span><span class="log-cmd">LST A2PBLK: NUM="0912345678";</span></span>
+                    <span class="log-line"><span class="log-time">[16:40:06]</span><span class="log-success">+++ RETCODE = 0 Đang chặn thành công</span></span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- TAB 1: ĐỊNH TUYẾN -->
+    <div class="tab-pane" id="pane-route">
+        <div class="app-workspace">
+            <div class="col-flow">
+                <div class="pro-card">
+                    <div class="card-head">
+                        <div class="card-head-title"><span class="step-badge">1</span> Nhập liệu định tuyến</div>
+                        <div style="display:flex; gap:4px;">
+                            <button class="btn-quick-tag" onclick="showToast('Đã chèn mẫu', 'info')">+ Cố Định</button>
+                            <button class="btn-quick-tag" onclick="showToast('Đã chèn mẫu', 'info')">+ 1900</button>
+                            <button class="btn-quick-tag" onclick="showToast('Đã chèn mẫu', 'info')">+ CFW</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <textarea class="code-textarea" rows="6" placeholder="2838123456 route HCM&#10;1900567890 route IMS&#10;918433694 route HNI"></textarea>
+                        <button class="btn-step1" onclick="showToast('Đang kiểm tra tổng đài...', 'info')">🔍 BƯỚC 1: KIỂM TRA TRẠNG THÁI TỔNG ĐÀI</button>
+                    </div>
+                </div>
+                <div class="pro-card">
+                    <div class="card-head"><div class="card-head-title"><span class="step-badge" style="background:#0284c7;">2</span> Trạng thái thực tế</div></div>
+                    <div class="card-body" style="padding:0;">
+                        <div style="height:120px; overflow-y:auto;">
+                            <table class="status-grid">
+                                <thead><tr><th>B-Number</th><th>TSSE2C</th><th>TSSE2D</th></tr></thead>
+                                <tbody>
+                                    <tr><td style="font-weight:700; color:#1e3a8a;">2808838123456</td><td><span class="badge-status ok">✓ RC=742 (HCM)</span></td><td><span class="badge-status ok">✓ RC=742 (HCM)</span></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="pro-card">
+                    <div class="card-head"><div class="card-head-title"><span class="step-badge" style="background:#059669;">3</span> Lệnh MML sẽ thực thi</div></div>
+                    <div class="card-body" style="padding:0;"><textarea class="code-textarea" rows="3" readonly style="color:#059669; font-weight:bold;">MOD CNACLD: DTYPE=ALL, PFX=HEX-2808838123456, CSA=742;</textarea></div>
+                </div>
+                <div class="pro-card" style="margin-top:auto;">
+                    <div class="card-body"><button class="btn-step2" onclick="showToast('Chạy cấu hình...', 'success')">▶ BƯỚC 2: CHẠY CẤU HÌNH SSH</button></div>
+                </div>
+            </div>
+            <div class="col-telemetry">
+                <div class="terminal-container">
+                    <div class="terminal-top-header"><div class="terminal-title">SSH CONSOLE STREAM</div></div>
+                    <div class="terminal-output"><span class="log-line"><span class="log-system">>>> Sẵn sàng kết nối SSH...</span></span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: ỨNG CỨU 11X -->
+    <div class="tab-pane" id="pane-uctt">
+        <div class="app-workspace">
+            <div class="col-flow">
+                <div class="pro-card">
+                    <div class="card-head"><div class="card-head-title">🔄 Điều khiển Ứng cứu khẩn cấp 11x</div></div>
+                    <div class="card-body">
+                        <div style="display:flex; gap:8px;">
+                            <button class="btn-step1" style="flex:1;">RC 113</button>
+                            <button class="btn-step1" style="flex:1; background:#64748b;">RC 114</button>
+                            <button class="btn-step1" style="flex:1; background:#64748b;">RC 115</button>
+                        </div>
+                        <div class="status-alert-box" style="margin-top:8px;">Trạng thái hiện tại: Bình thường</div>
+                        <div style="display:flex; gap:8px; margin-top:8px;">
+                            <button class="btn-analyze" style="flex:1;" onclick="showToast('Chuyển đổi 11x...', 'warning')">🔀 Chuyển đổi...</button>
+                            <button class="btn-step2" style="flex:1; background:#10b981;" onclick="showToast('Hoàn trả...', 'success')">↩️ Fallback (ANRAR)</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-telemetry">
+                <div class="terminal-container">
+                    <div class="terminal-top-header"><div class="terminal-title">SSH CONSOLE 11X</div></div>
+                    <div class="terminal-output"><span class="log-line"><span class="log-system">>>> Sẵn sàng kết nối SSH UCTT...</span></span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 4: LỊCH SỬ -->
+    <div class="tab-pane" id="pane-history">
+        <div class="app-workspace" style="flex-direction:column;">
+            <div class="pro-card">
+                <div class="card-body" style="flex-direction:row; align-items:center; justify-content:space-between;">
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <input type="text" class="code-textarea" placeholder="🔍 Tìm kiếm user / lệnh..." style="width:250px; height:32px;">
+                        <input type="date" class="code-textarea" style="width:140px; height:32px;" value="2026-09-01">
+                        <button class="btn-step1" style="height:32px;">Lọc</button>
+                    </div>
+                    <button class="btn-action-sm">📥 Xuất Excel</button>
+                </div>
+            </div>
+            <div class="pro-card" style="flex:1;">
+                <div class="card-body" style="padding:0; overflow-y:auto;">
+                    <table class="status-grid">
+                        <thead><tr><th>ID</th><th>Thời gian</th><th>User</th><th>Lệnh MML</th></tr></thead>
+                        <tbody>
+                            <tr><td>#1042</td><td>2026-09-01 16:30</td><td><span class="badge-status ok">minhth</span></td><td><code>MOD CNACLD: DTYPE=ALL, PFX=HEX-2808838123456, CSA=742;</code></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- FOOTER -->
+<footer class="app-footer">
+    <div>&copy; 2026 SIP Routing Tool | <b>VNPT SNOC2</b> | Phiên bản Web</div>
+    <div>Phát triển bởi: <a href="mailto:tranhuuminh@vnpt.vn" style="color:#3b82f6; text-decoration:none;">Trần Hữu Minh</a></div>
+</footer>
+
+<div id="toast" class="toast-notify">
+    <span id="toastIcon">ℹ️</span>
+    <span id="toastMsg">Thông báo</span>
+</div>
+
+<script>
+    function switchMainTab(tabKey) {
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+
+        document.getElementById('tabNav-' + tabKey).classList.add('active');
+        document.getElementById('pane-' + tabKey).classList.add('active');
+    }
+
+    function showToast(msg, type) {
+        var toast = document.getElementById("toast");
+        var icon = document.getElementById("toastIcon");
+        var msgEl = document.getElementById("toastMsg");
+
+        icon.textContent = (type === 'success') ? "✅" : (type === 'error') ? "❌" : (type === 'warning') ? "⚠️" : "ℹ️";
+        msgEl.textContent = msg;
+        toast.className = "toast-notify show";
+
+        setTimeout(() => { toast.className = "toast-notify"; }, 2600);
+    }
+</script>
+
+</body>
+</html>

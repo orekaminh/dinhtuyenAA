@@ -8,151 +8,113 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
     <style>
-		
-		/* CSS Highlight cho dòng trong bảng */
-		.table-res tr { cursor: pointer; transition: background-color 0.2s; }
-		.table-res tr:hover { background-color: #f1f3f5; }
-		.highlight-row td { background-color: #fff3cd !important; border-bottom: 1px solid #ffe69c; }
-
-        /* 1. Ép Body cao đúng 100% màn hình, cấm cuộn trang tổng */
-        body { 
-            background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif; font-size: 0.9rem; 
-            height: 100vh; 
-            display: flex; 
-            flex-direction: column; 
-            margin: 0; 
-            overflow: hidden; 
-        }
-        
-        .card-header-custom { background-color: #fff; color: #003366; font-weight: bold; border-bottom: 2px solid #e9ecef; padding: 8px 15px; }
-        .card { border-radius: 4px; border: 1px solid #dee2e6; margin-bottom: 10px; flex-shrink: 0; }
-        
-        textarea.form-control { 
-            font-family: 'Consolas', monospace; 
-            font-size: 0.9rem; 
-            line-height: 1.5; 
-        }
-        
-        textarea::placeholder { 
-			white-space: pre-wrap !important; 
-			font-size: 0.73rem; /* Thu nhỏ cỡ chữ (anh có thể chỉnh 0.7rem hoặc 0.8rem tùy ý) */
-			line-height: 1.2;   /* Thu hẹp khoảng cách giữa các dòng */
-		}
-		textarea::-moz-placeholder { 
-			white-space: pre-wrap !important; 
-			font-size: 0.73rem; 
-			line-height: 1.2;
-		}
-    
-        /* 2. Cột trái: Tự động có thanh cuộn nếu nội dung dài */
         .left-col-scroll {
             height: 100%;
             overflow-y: auto;
             overflow-x: hidden;
-            padding-right: 5px;
+            padding-right: 4px;
         }
-
-        /* 3. Log Style chuẩn Flexbox xịn */
         .log-container {
             display: flex;
             flex-direction: column;
-            height: 100%; /* Ép cột phải cao 100% */
+            height: 100%;
+            min-height: 0;
         }
-        .log-box {
-            display: flex;
-            flex-direction: column;
-            flex: 1; /* Chia đều 50/50 chiều cao màn hình */
-            min-height: 0; /* Quan trọng để flex không bị tràn */
-        }
-        .log-panel { 
-            background-color: #0D1117; color: #c9d1d9; font-family: 'Consolas', monospace; 
-            font-size: 0.85rem; overflow-y: auto; padding: 10px; border: 1px solid #30363d; 
-            white-space: pre-wrap; 
-            flex: 1; /* Chiếm hết phần còn lại của log-box */
-            min-height: 0; /* Bắt buộc để scroll hoạt động mượt */
-            margin-bottom: 0;
-        }
-        
-        .log-title { 
-            background-color: #21262d; color: #58a6ff; padding: 5px 10px; font-weight: bold; font-size: 0.85rem; 
-            display: flex; justify-content: space-between; align-items: center; 
-            flex-shrink: 0; 
-        }
-        .btn-clear-log { cursor: pointer; color: #ff7b72; font-size: 0.8rem; text-decoration: none; }
-        .btn-clear-log:hover { text-decoration: underline; color: #ffad0a; }
-    
-        .log-cmd { color: #79c0ff; font-weight: bold; }
-        .log-success { color: #56d364; }
-        .log-error { color: #ff7b72; }
-        .log-raw { color: #c9d1d9; }
-    
-        /* Style Bảng Kết Quả */
-        #resultsBox { height: 180px; overflow-y: auto; background: #fff; padding: 0; }
-        .table-res { width: 100%; font-family: 'Consolas', monospace; font-size: 13px; border-collapse: collapse; }
-        .table-res th { position: sticky; top: 0; background: #f8f9fa; z-index: 1; border-bottom: 2px solid #dee2e6; padding: 5px; text-align: center; }
-        .table-res td { border-bottom: 1px solid #eee; padding: 4px 8px; vertical-align: middle; text-align: center; } 
-        
-        .res-ok { color: #198754; font-weight: bold; } 
-        .res-fail { color: #dc3545; font-weight: bold; } 
-        .res-wait { color: #adb5bd; font-style: italic; } 
-        .res-inherited { color: #d35400; font-weight: bold; } 
-        
-        /* Nút "Chạy cấu hình" dùng style nút chung trong app.css (btn-primary + hover thống nhất) */
     </style>
 </head>
 <body>
 
 {% include '_navbar.html' %}
 
-<div class="container-fluid flex-grow-1 overflow-hidden pb-2 d-flex flex-column">
+<div class="container-fluid flex-grow-1 overflow-hidden pb-2 d-flex flex-column" style="min-height: 0;">
     <div class="row g-2 w-100 m-0 h-100">
         
-        <div class="col-md-7 left-col-scroll">
-            <div class="card shadow-sm">
-                <div class="card-header-custom">📝 1. Nhập liệu định tuyến</div>
-                <div class="card-body p-2">
-                    <textarea id="inputRaw" class="form-control" rows="11" 
-					onclick="syncHighlightFromInput()" 
-					onkeyup="syncHighlightFromInput()" 
-placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
-----------------------------------------------------------------------
-★ CHỈ KIỂM TRA: dán SỐ TRẦN (mỗi dòng 1 số) rồi bấm 'BƯỚC 1'.
-★ CẤU HÌNH: thêm route/delete + site như mẫu bên dưới.
-----------------------------------------------------------------------
-1. CỐ ĐỊNH (10 số) :
-   👉 2838xxxxxx route HCM/HNI/IMS
-
-2. ĐẦU 1800/1900 (8 hoặc 10 số) - Mặc định IMS:
-   👉 1900xxxxxx route HCM/HNI/IMS
-
-3. CFW 91 (8, 9 hoặc 10 số) - Hỗ trợ cả HCM/HNI/IMS:
-   👉 91xxxxxxx  route HCM/HNI/IMS
-
-4. CFW 138 (9 hoặc 10 số) - Hỗ trợ cả HCM/HNI:
-   👉 138xxxxxxx route HCM/HNI
-
-5. LỆNH XÓA (Hỗ trợ: delete, xoa, xóa, huy):
-   👉 2838xxxxxx delete
-----------------------------------------------------------------------"></textarea>
-                    <div class="form-check form-switch mt-1">
-                        <input class="form-check-input" type="checkbox" id="allowFreeInput" onchange="updateInputAnnotations()">
-                        <label class="form-check-label text-muted small" for="allowFreeInput">Cho phép nhập tự do</label>
+        <!-- CỘT TRÁI: QUY TRÌNH 4 BƯỚC CẤU HÌNH -->
+        <div class="col-md-7 left-col-scroll d-flex flex-column gap-2">
+            
+            <!-- BƯỚC 1: NHẬP LIỆU ĐỊNH TUYẾN -->
+            <div class="pro-card">
+                <div class="card-head">
+                    <div class="card-head-title">
+                        <span class="step-badge">1</span>
+                        <span>Nhập liệu số cần định tuyến & kiểm tra</span>
                     </div>
-                    <button onclick="runCheckAutomation()" id="btnCheck" class="btn btn-info text-white w-100 fw-bold mt-2 shadow-sm">
-                        🔍 BƯỚC 1: KIỂM TRA TRẠNG THÁI
+                    <div class="d-flex align-items-center gap-1 flex-wrap">
+                        <button type="button" class="btn-quick-tag" onclick="insertSample('fixed')">+ Cố Định</button>
+                        <button type="button" class="btn-quick-tag" onclick="insertSample('1900')">+ 1900/1800</button>
+                        <button type="button" class="btn-quick-tag" onclick="insertSample('cfw')">+ CFW</button>
+                        <button type="button" class="btn-quick-tag" onclick="insertSample('del')">+ Lệnh Xóa</button>
+                        <button type="button" class="btn-quick-tag text-danger" onclick="clearInput()">🗑️ Xóa trắng</button>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <div class="input-editor-wrapper">
+                        <textarea id="inputRaw" class="code-textarea" rows="8" 
+                            onclick="syncHighlightFromInput()" 
+                            onkeyup="syncHighlightFromInput()"
+                            oninput="updateInputStats()"
+                            placeholder="Dán danh sách số hoặc lệnh cấu hình vào đây (Mỗi dòng 1 số)...
+Ví dụ:
+2838xxxxxx route HCM/HNI/IMS
+1900xxxxxx route IMS
+91xxxxxxx  route HCM/HNI/IMS
+2838xxxxxx delete"></textarea>
+                        
+                        <div class="input-footer-bar">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="stat-pill" id="statTotal">Tổng: 0 dòng</span>
+                                <span class="stat-pill valid" id="statValid">Hợp lệ: 0</span>
+                            </div>
+
+                            <label class="toggle-switch-group mb-0">
+                                <div class="custom-switch">
+                                    <input type="checkbox" id="allowFreeInput" onchange="updateInputAnnotations()">
+                                    <span class="switch-slider"></span>
+                                </div>
+                                <span style="font-weight: 500; font-size: 11.5px;">Cho phép nhập tự do (Bỏ qua giới hạn độ dài)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Accordion Hướng dẫn cú pháp thu gọn -->
+                    <details class="syntax-accordion">
+                        <summary class="syntax-summary">
+                            <span>💡 Xem bảng hướng dẫn cú pháp định tuyến (Tự động cắt 0/84)</span>
+                            <span style="font-size: 10px;">▼</span>
+                        </summary>
+                        <div class="syntax-content">
+                            <div class="syntax-item">📞 <b>Cố định 10 số:</b> <code>2838xxxxxx route HCM/HNI/IMS</code></div>
+                            <div class="syntax-item">🏢 <b>Đầu 1800/1900:</b> <code>1900xxxxxx route IMS</code></div>
+                            <div class="syntax-item">📲 <b>CFW 91 (8-10 số):</b> <code>91xxxxxxx route HCM/HNI/IMS</code></div>
+                            <div class="syntax-item">📲 <b>CFW 138 (9-10 số):</b> <code>138xxxxxxx route HCM/HNI</code></div>
+                            <div class="syntax-item" style="grid-column: span 2;">❌ <b>Lệnh xóa:</b> <code>2838xxxxxx delete</code> (hỗ trợ: <code>xoa</code>, <code>xóa</code>, <code>huy</code>) | <i>Chỉ kiểm tra: Dán số trần không route/delete</i></div>
+                        </div>
+                    </details>
+
+                    <button onclick="runCheckAutomation()" id="btnCheck" class="btn-step1 mt-1">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <span>🔍 BƯỚC 1: KIỂM TRA TRẠNG THÁI TỔNG ĐÀI</span>
                     </button>
                 </div>
             </div>
 
-            <div class="card shadow-sm mt-2">
-                <div class="card-header-custom">📊 2. Trạng thái thực tế (Tham khảo)</div>
-                <div class="card-body p-0" id="resultsBox">
-                    <table class="table-res">
+            <!-- BƯỚC 2: BẢNG TRẠNG THÁI THỰC TẾ -->
+            <div class="pro-card">
+                <div class="card-head">
+                    <div class="card-head-title">
+                        <span class="step-badge" style="background:#0284c7;">2</span>
+                        <span>Trạng thái thực tế trên 2 Node (TSSE2C & TSSE2D)</span>
+                    </div>
+                    <input type="text" id="tableFilter" class="code-textarea py-1 px-2" style="width: 170px; height: 28px; font-size: 11px;" placeholder="🔍 Lọc số / đích..." onkeyup="filterResultTable()">
+                </div>
+                <div class="card-body p-0" id="resultsBox" style="height: 155px; overflow-y: auto; background: #fff;">
+                    <table class="status-grid table-res w-100">
                         <thead>
                             <tr>
-                                <th style="width: 20%">Số B-Number</th>
-                                <th style="width: 40%">TSSE2C</th>
-                                <th style="width: 40%">TSSE2D</th>
+                                <th style="width: 28%">Số B-Number</th>
+                                <th style="width: 36%">TSSE2C</th>
+                                <th style="width: 36%">TSSE2D</th>
                             </tr>
                         </thead>
                         <tbody id="resBody">
@@ -161,76 +123,207 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
                 </div>
             </div>
 
-            <div class="card shadow-sm mt-2">
-                <div class="card-header-custom bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <span>⚙️ 3. Lệnh MML sẽ thực thi (Đã lọc)</span>
-                    <button type="button" id="btnToggleEditCmd" onclick="toggleEditCommands()" class="btn btn-sm btn-warning">🔓 Cho phép sửa tay</button>
+            <!-- BƯỚC 3: LỆNH MML SẼ THỰC THI -->
+            <div class="pro-card">
+                <div class="card-head">
+                    <div class="card-head-title">
+                        <span class="step-badge" style="background:#059669;">3</span>
+                        <span>Lệnh MML sẽ thực thi (Đã lọc & tối ưu)</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn-action-sm" onclick="copyMMLCommands()">
+                            📋 Sao chép
+                        </button>
+                        <button type="button" id="btnToggleEditCmd" onclick="toggleEditCommands()" class="btn-action-sm warning-toggle">
+                            🔓 Cho phép sửa tay
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body p-0">
-                    <textarea id="outputCommands" class="form-control border-0 bg-light text-success fw-bold" rows="5" readonly placeholder="Hệ thống sẽ tự sinh lệnh tại đây sau khi KIỂM TRA xong..."></textarea>
-                    <div id="editWarningNote" class="small fw-bold px-2 pb-1" style="color:#B45309; display:none;">⚠️ Đang chỉnh sửa tay — lệnh sẽ khác với lệnh hệ thống tự sinh</div>
-                </div>
-            </div>
-            
-            <div class="card shadow-sm mt-2" style="position: sticky; bottom: 0; z-index: 1000; box-shadow: 0 -4px 10px rgba(0,0,0,0.1) !important;">
-                <div class="card-header-custom bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <span>🚀 4. Đẩy lệnh vào hệ thống</span>
-                    <span class="d-flex align-items-center gap-2 small fw-normal" style="color:#475569;">
-                        <span>Đẩy vào:</span>
-                        <div class="form-check form-check-inline mb-0">
-                            <input class="form-check-input" type="radio" name="targetNode" id="tgtBoth" value="BOTH" checked>
-                            <label class="form-check-label" for="tgtBoth">Cả 2</label>
+                    <div class="mml-editor-wrapper">
+                        <textarea id="outputCommands" class="mml-textarea" rows="4" readonly placeholder="Hệ thống sẽ tự động lọc bỏ các số đã đúng hướng và sinh lệnh MML tối ưu tại đây sau khi KIỂM TRA xong..."></textarea>
+                        <div id="editWarningNote" class="manual-alert-strip" style="display: none;">
+                            ⚠️ Đang chỉnh sửa tay — lệnh thực thi sẽ chạy chính xác theo nội dung bạn chỉnh sửa bên trên.
                         </div>
-                        <div class="form-check form-check-inline mb-0">
-                            <input class="form-check-input" type="radio" name="targetNode" id="tgt2C" value="TSSE2C">
-                            <label class="form-check-label" for="tgt2C">TSSE2C</label>
-                        </div>
-                        <div class="form-check form-check-inline mb-0">
-                            <input class="form-check-input" type="radio" name="targetNode" id="tgt2D" value="TSSE2D">
-                            <label class="form-check-label" for="tgt2D">TSSE2D</label>
-                        </div>
-                    </span>
-                </div>
-                <div class="card-body p-2">
-                    <div class="d-flex gap-2">
-                        <button onclick="executeConfigSSH()" id="btnExecute" class="btn btn-primary flex-fill fw-bold" disabled>▶ BƯỚC 2: CHẠY CẤU HÌNH</button>
-                        <button onclick="stopSSH()" id="btnStop" class="btn btn-danger fw-bold" disabled>⏹ DỪNG</button>
                     </div>
                 </div>
             </div>
+            
+            <!-- BƯỚC 4: ĐẨY LỆNH VÀO HỆ THỐNG -->
+            <div class="pro-card mt-auto" style="border-top: 2px solid var(--primary); box-shadow: 0 -3px 10px rgba(0,0,0,0.06);">
+                <div class="card-head" style="background:#ffffff; border-bottom: 1px solid #f1f5f9;">
+                    <div class="card-head-title">
+                        <span class="step-badge" style="background:#2563eb;">4</span>
+                        <span>Phạm vi thực thi Node</span>
+                    </div>
+                    <div class="node-picker-group">
+                        <label class="node-radio-label selected" id="lblBoth" onclick="selectTargetRadio('tgtBoth')">
+                            <input type="radio" name="targetNode" id="tgtBoth" value="BOTH" checked>
+                            <span>⚡ Cả 2 Node</span>
+                        </label>
+                        <label class="node-radio-label" id="lbl2C" onclick="selectTargetRadio('tgt2C')">
+                            <input type="radio" name="targetNode" id="tgt2C" value="TSSE2C">
+                            <span>Chỉ TSSE2C</span>
+                        </label>
+                        <label class="node-radio-label" id="lbl2D" onclick="selectTargetRadio('tgt2D')">
+                            <input type="radio" name="targetNode" id="tgt2D" value="TSSE2D">
+                            <span>Chỉ TSSE2D</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="card-body p-2">
+                    <div class="d-flex gap-2">
+                        <button onclick="executeConfigSSH()" id="btnExecute" class="btn-step2" disabled>
+                            ▶ BƯỚC 2: THỰC HIỆN CẤU HÌNH
+                        </button>
+                        <button onclick="stopSSH()" id="btnStop" class="btn-stop" disabled>
+                            ⏹ DỪNG
+                        </button>
+                    </div>
+                </div>
+            </div>
+
         </div>
         
+        <!-- CỘT PHẢI: DUAL SSH CONSOLE STREAM -->
         <div class="col-md-5 log-container">
-            <div class="log-box mb-2">
-                <div class="log-title">
-                    📡 Console TSSE2C 
-                    <span onclick="clearLog('C')" class="btn-clear-log">🗑️ Xóa Log</span>
+            <div class="terminal-container">
+                <div class="terminal-top-header">
+                    <div class="terminal-title">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                        <span>SSH CONSOLE TELEMETRY</span>
+                    </div>
+                    <div class="terminal-tabs">
+                        <button type="button" class="term-tab-btn active" id="btnTermSplit" onclick="switchTermView('split')">Chia đôi (C+D)</button>
+                        <button type="button" class="term-tab-btn" id="btnTermC" onclick="switchTermView('C')">TSSE2C</button>
+                        <button type="button" class="term-tab-btn" id="btnTermD" onclick="switchTermView('D')">TSSE2D</button>
+                    </div>
                 </div>
-                <div id="logC" class="log-panel"></div>
-            </div>
-            
-            <div class="log-box">
-                <div class="log-title" style="color: #ff7b72">
-                    📡 Console TSSE2D 
-                    <span onclick="clearLog('D')" class="btn-clear-log">🗑️ Xóa Log</span>
+
+                <div class="terminal-views-wrapper">
+                    <!-- Console TSSE2C -->
+                    <div class="terminal-split-box" id="boxTermC">
+                        <div class="node-sub-head">
+                            <span>📡 Node TSSE2C (10.202.47.54)</span>
+                            <span onclick="clearLog('C')" class="btn-term-clear">🗑️ Xóa log</span>
+                        </div>
+                        <div id="logC" class="terminal-output"></div>
+                    </div>
+                    
+                    <!-- Console TSSE2D -->
+                    <div class="terminal-split-box" id="boxTermD">
+                        <div class="node-sub-head node-d">
+                            <span>📡 Node TSSE2D (10.202.49.54)</span>
+                            <span onclick="clearLog('D')" class="btn-term-clear">🗑️ Xóa log</span>
+                        </div>
+                        <div id="logD" class="terminal-output"></div>
+                    </div>
                 </div>
-                <div id="logD" class="log-panel"></div>
             </div>
         </div>
  
     </div>
 </div>
 
-<div class="w-100 bg-dark text-center py-1" style="font-size: 12px; color: #adb5bd; border-top: 1px solid #495057;">
-    &copy; 2026 SIP Routing Tool | VNPT | Developed by <strong>Trần Hữu Minh</strong> (<a href="mailto:tranhuuminh@vnpt.vn" class="text-decoration-none" style="color: #adb5bd;">tranhuuminh@vnpt.vn</a>)
-</div>
+<footer class="app-footer">
+    <div>&copy; 2026 SIP Routing Tool | <b>VNPT SNOC2</b> | Phiên bản Web</div>
+    <div>Phát triển bởi: <a href="mailto:tranhuuminh@vnpt.vn">Trần Hữu Minh</a> (tranhuuminh@vnpt.vn)</div>
+</footer>
 
 <script>
     var socket = io({ transports: ['websocket', 'polling'] });
-    var syncCache = {}; // Cache kết quả từ server: { '39-2808838...': {C: res, D: res} }
-    
-    // Cờ theo dõi trạng thái đang chạy kiểm tra
+    var syncCache = {};
     var isCheckingTask = false; 
+
+    // --- QUICK SAMPLE INSERTS ---
+    var samplePresets = {
+        fixed: "2838123456 route HCM\n2439876543 route HNI\n2839111222 route IMS",
+        1900: "19001234 route IMS\n1900567890 route HCM\n18001166 route IMS",
+        cfw: "918433694 route HNI\n918888999 route HCM\n1382223334 route HCM",
+        del: "2838123456 delete\n1900567890 xoa\n918433694 huy"
+    };
+
+    function insertSample(type) {
+        var ta = document.getElementById("inputRaw");
+        var val = samplePresets[type] || "";
+        if (ta.value.trim()) {
+            ta.value = ta.value.trim() + "\n" + val;
+        } else {
+            ta.value = val;
+        }
+        updateInputStats();
+    }
+
+    function clearInput() {
+        showConfirm("Bạn có chắc chắn muốn xóa toàn bộ nội dung ô nhập liệu?", {
+            title: "Xác nhận xóa trắng",
+            type: "warning",
+            isDanger: true,
+            okText: "Xóa sạch",
+            onOk: function() {
+                document.getElementById("inputRaw").value = "";
+                document.getElementById("outputCommands").value = "";
+                document.getElementById("resBody").innerHTML = "";
+                updateInputStats();
+                showToast("Đã xóa sạch ô nhập liệu", "info");
+            }
+        });
+    }
+
+    function updateInputStats() {
+        var val = document.getElementById("inputRaw").value;
+        var lines = val.split('\n').filter(function(l){ return l.trim().length > 0; });
+        document.getElementById("statTotal").textContent = "Tổng: " + lines.length + " dòng";
+        document.getElementById("statValid").textContent = "Hợp lệ: " + lines.length;
+    }
+
+    function selectTargetRadio(radioId) {
+        document.querySelectorAll('.node-radio-label').forEach(function(lbl){ lbl.classList.remove('selected'); });
+        var radio = document.getElementById(radioId);
+        if (radio) {
+            radio.checked = true;
+            radio.parentElement.classList.add('selected');
+        }
+    }
+
+    // --- TERMINAL VIEW SWITCHER ---
+    function switchTermView(view) {
+        document.querySelectorAll('.term-tab-btn').forEach(function(btn){ btn.classList.remove('active'); });
+        var boxC = document.getElementById("boxTermC");
+        var boxD = document.getElementById("boxTermD");
+
+        if (view === 'split') {
+            document.getElementById("btnTermSplit").classList.add('active');
+            boxC.style.display = "flex";
+            boxD.style.display = "flex";
+        } else if (view === 'C') {
+            document.getElementById("btnTermC").classList.add('active');
+            boxC.style.display = "flex";
+            boxD.style.display = "none";
+        } else if (view === 'D') {
+            document.getElementById("btnTermD").classList.add('active');
+            boxC.style.display = "none";
+            boxD.style.display = "flex";
+        }
+    }
+
+    function copyMMLCommands() {
+        var val = document.getElementById("outputCommands").value;
+        if (!val.trim()) {
+            showToast("Chưa có lệnh nào để sao chép!", "warning");
+            return;
+        }
+        navigator.clipboard.writeText(val);
+        showToast("Đã sao chép toàn bộ lệnh MML vào Clipboard!", "success");
+    }
+
+    function filterResultTable() {
+        var term = document.getElementById("tableFilter").value.toLowerCase();
+        var rows = document.querySelectorAll("#resBody tr");
+        rows.forEach(function(r) {
+            r.style.display = r.innerText.toLowerCase().indexOf(term) !== -1 ? "" : "none";
+        });
+    }
 
     // --- LOGGING ---
     socket.on('log', function(data) {
@@ -238,7 +331,7 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
         if (targetLog) {
             var span = document.createElement("span");
             span.textContent = data.msg;
-            span.className = `log-${data.type}`;
+            span.className = `log-${data.type} log-line`;
             targetLog.appendChild(span);
             targetLog.scrollTop = targetLog.scrollHeight;
         }
@@ -248,15 +341,19 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
     socket.on('execution_finished', function(data) {
         document.getElementById("btnExecute").disabled = false;
         document.getElementById("btnStop").disabled = true;
-        alert("✅ Đã hoàn tất thực thi lệnh trên các Node!");
+        showAlert("Đã hoàn tất thực thi lệnh cấu hình trên các Node!", { title: "Thực thi hoàn tất", type: "success" });
     });
     
     socket.on('log_system', function(data) {
-        ['logC', 'logD'].forEach(id => {
+        ['logC', 'logD'].forEach(function(id) {
             var el = document.getElementById(id);
-            var div = document.createElement("div"); 
-            div.textContent = ">>> " + data.msg; div.style.color = "yellow";
-            el.appendChild(div); el.scrollTop = el.scrollHeight;
+            if (el) {
+                var div = document.createElement("div"); 
+                div.textContent = ">>> " + data.msg; 
+                div.className = "log-system log-line";
+                el.appendChild(div); 
+                el.scrollTop = el.scrollHeight;
+            }
         });
     });
 
@@ -285,11 +382,11 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
         if (!row) {
             row = document.createElement("tr");
             row.id = rowId;
-            row.setAttribute('onclick', `syncHighlightFromTable('${b_num}')`); // Thêm dòng này
+            row.setAttribute('onclick', `syncHighlightFromTable('${b_num}')`);
             row.innerHTML = `
                 <td style="font-weight:bold; color:#003366">${b_num}</td>
-                <td id="cell-C-${rowId}" class="res-wait">...</td>
-                <td id="cell-D-${rowId}" class="res-wait">...</td>
+                <td id="cell-C-${rowId}"><span class="badge-status waiting">...</span></td>
+                <td id="cell-D-${rowId}"><span class="badge-status waiting">...</span></td>
             `;
             tbody.appendChild(row);
         }
@@ -303,16 +400,14 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
     }
 
     function updateCell(cell, data) {
+        if (!cell) return;
         if (data.status === 'found') {
             var shortDesc = data.desc.replace('ĐÃ KHAI BÁO', '').trim();
-            cell.className = "res-ok";
-            cell.innerText = shortDesc || "OK";
+            cell.innerHTML = `<span class="badge-status ok">✓ ${shortDesc || "OK"}</span>`;
         } else if (data.status === 'inherited') {
-             cell.className = "res-inherited"; 
-             cell.innerText = data.desc; 
+            cell.innerHTML = `<span class="badge-status inherited">⚡ ${data.desc}</span>`;
         } else {
-            cell.className = "res-fail";
-            cell.innerText = "CHƯA CÓ";
+            cell.innerHTML = `<span class="badge-status missing">✗ CHƯA CÓ</span>`;
         }
     }
 
@@ -332,24 +427,19 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
         }
     }
 	
-	// --- TÍNH NĂNG HIGHLIGHT CHÉO ---
-
-    // Hàm 1: Đổi màu dòng trong bảng và tự động cuộn (scroll) tới dòng đó
+	// --- TÍNH NĂNG HIGHLIGHT CHÉO 2 CHIỀU ---
     function highlightTableRow(b_num) {
-        // Xóa highlight cũ
-        document.querySelectorAll('.highlight-row').forEach(el => el.classList.remove('highlight-row'));
+        document.querySelectorAll('#resBody tr').forEach(function(el) { el.classList.remove('highlight-row', 'highlight-selected'); });
         if (!b_num) return;
 
         var safeId = b_num.replace(/[^a-zA-Z0-9]/g, '');
         var row = document.getElementById("row-" + safeId);
         if (row) {
-            row.classList.add('highlight-row');
-            // Tự động cuộn bảng để dòng được chọn luôn nằm ở giữa tầm nhìn
+            row.classList.add('highlight-row', 'highlight-selected');
             row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
     }
 
-    // Hàm 2: Nhấp vào ô Textarea -> Highlight bảng
     function syncHighlightFromInput() {
         var textarea = document.getElementById("inputRaw");
         var cursorPos = textarea.selectionStart; 
@@ -357,24 +447,19 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
         var textUpToCursor = textarea.value.substring(0, cursorPos);
         var lineIndex = textUpToCursor.split('\n').length - 1;
         
-        var currentLine = textarea.value.split('\n')[lineIndex];
+        var currentLine = textarea.value.split('\n')[lineIndex] || "";
         var rawNum = currentLine.split('#')[0].trim().split(/\s+/)[0];
         
         if (rawNum && rawNum.match(/^\d+$/)) {
             var calculatedNum = calculateBNumber(rawNum);
-            
-            // [SỬA LỖI] Lục tìm số B-Number thực tế từ tổng đài (có chứa 39-, 36-...)
             var cacheKeys = Object.keys(syncCache);
-            var matchedKey = cacheKeys.find(k => k.includes(calculatedNum));
-            
-            // Nếu tìm thấy số trên tổng đài thì highlight số đó, không thì lấy số tính toán
+            var matchedKey = cacheKeys.find(function(k) { return k.includes(calculatedNum); });
             highlightTableRow(matchedKey || calculatedNum);
         } else {
             highlightTableRow(null); 
         }
     }
 
-    // Hàm 3: Nhấp vào Bảng -> Bôi đen dòng trong Textarea
     function syncHighlightFromTable(b_num) {
         highlightTableRow(b_num);
         
@@ -386,7 +471,6 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
             var line = lines[i];
             var rawNum = line.split('#')[0].trim().split(/\s+/)[0];
             
-            // [SỬA LỖI] Dùng b_num.includes() thay vì === để bỏ qua các tiền tố 39-, 204-...
             if (rawNum && rawNum.match(/^\d+$/) && b_num.includes(calculateBNumber(rawNum))) {
                 var endPos = startPos + line.length;
                 textarea.focus(); 
@@ -406,9 +490,8 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
         var allowedRegex = /^(xoa|xóa|delete|huy|route|to|hcm|hni|vims|ims)$/i;
         var deleteKeywordsRegex = /^(xoa|xóa|delete|huy)$/i;
 
-        var newLines = lines.map(line => {
+        var newLines = lines.map(function(line) {
             var coreText = line.split('#')[0].trimEnd();
-            
             if (!coreText.trim()) return line;
 
             var parts = coreText.trim().split(/\s+/);
@@ -421,15 +504,12 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
             
             var len = cleanNum.length;
             var isLenOk = false;
-
-            // 1. Đưa việc nhận diện lệnh XÓA lên kiểm tra sớm
-            var isDeleteCmd = commands.some(word => deleteKeywordsRegex.test(word));
+            var isDeleteCmd = commands.some(function(word) { return deleteKeywordsRegex.test(word); });
 
             if (!rawNum.match(/^\d+$/)) {
                 return coreText + " # 🚫 Lỗi: Chứa ký tự không phải số";
             }
 
-            // 2. CHỈ KIỂM TRA ĐỘ DÀI NẾU LÀ LỆNH XÓA VÀ CHƯA TICK NHẬP TỰ DO
             if (isDeleteCmd && !allowFree) {
                 if (cleanNum.startsWith('91')) {
                     if ([8, 9, 10].includes(len)) isLenOk = true;
@@ -450,22 +530,19 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
             }
 
             if (commands.length === 0) {
-                 // Chỉ có số (không route/delete) -> dòng CHỈ KIỂM TRA, hợp lệ (không phải lỗi)
                  return coreText;
             }
 
-            var badWords = commands.filter(word => !allowedRegex.test(word));
-
+            var badWords = commands.filter(function(word) { return !allowedRegex.test(word); });
             if (badWords.length > 0) {
                 return coreText + " # 🚫 Lỗi: Sai cú pháp '" + badWords.join("', '") + "'";
             }
 
             var calculatedNum = calculateBNumber(rawNum);
-            var matchedKey = cacheKeys.find(k => k.includes(calculatedNum));
+            var matchedKey = cacheKeys.find(function(k) { return k.includes(calculatedNum); });
 
             if (matchedKey) {
                 var res = syncCache[matchedKey];
-                
                 var isFoundC = (res.C && res.C.status === 'found');
                 var isFoundD = (res.D && res.D.status === 'found');
                 var descC = (res.C && res.C.desc) ? res.C.desc : "";
@@ -487,32 +564,19 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
                     else if (isFoundC && isFoundD) {
                         var isChangeLikely = checkDifference(coreText, descC); 
                         if (isChangeLikely) {
-                            // Tạo bộ từ điển dịch mã RC sang Tên
-                            var rcNames = {
-                                "742": "HCM",
-                                "703": "HNI",
-                                "607": "vIMS"
-                            };
-
-                            // 1. Dò tìm RC hiện tại từ descC
+                            var rcNames = { "742": "HCM", "703": "HNI", "607": "vIMS" };
                             var currentRoute = "?";
                             var matchRC = descC.match(/RC=(\d+)/);
                             if (matchRC) currentRoute = matchRC[1];
-                            
-                            // Lấy tên hiện tại, nếu có thì bọc trong ngoặc đơn
                             var currentName = rcNames[currentRoute] ? " (" + rcNames[currentRoute] + ")" : "";
 
-                            // 2. Phân tích hướng mục tiêu mà người dùng gõ
                             var targetRoute = "?";
                             var textLower = coreText.toLowerCase();
                             if (textLower.includes("hcm")) targetRoute = "742";
                             else if (textLower.includes("hni")) targetRoute = "703";
                             else if (textLower.includes("vims") || textLower.includes("ims")) targetRoute = "607";
                             
-                            // Lấy tên mục tiêu
                             var targetName = rcNames[targetRoute] ? " (" + rcNames[targetRoute] + ")" : "";
-
-                            // Ghép câu hoàn chỉnh
                             msg = " # 🔄 OK (Sẽ chuyển từ RC=" + currentRoute + currentName + " ➔ RC=" + targetRoute + targetName + ")";
                         } else {
                             msg = " # ⚠️ Trùng khớp (Đang chạy đúng hướng này rồi)";
@@ -528,36 +592,34 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
         });
 
         inputEl.value = newLines.join('\n');
+        updateInputStats();
     }
 
     function checkDifference(cmdInput, currentDesc) {
         cmdInput = cmdInput.toLowerCase();
         currentDesc = currentDesc.toLowerCase();
-
         if (cmdInput.includes("hcm") && (currentDesc.includes("hcm") || currentDesc.includes("742"))) return false;
         if (cmdInput.includes("hni") && (currentDesc.includes("hni") || currentDesc.includes("703"))) return false;
         if (cmdInput.includes("vims") && (currentDesc.includes("vims") || currentDesc.includes("607"))) return false;
-
         return true;
     }
 
     function cleanInputComments() {
         var inputEl = document.getElementById("inputRaw");
-        inputEl.value = inputEl.value.split('\n').map(l => l.split('#')[0].trimEnd()).join('\n');
+        inputEl.value = inputEl.value.split('\n').map(function(l) { return l.split('#')[0].trimEnd(); }).join('\n');
+        updateInputStats();
     }
 
     // --- ACTIONS ---
-
     function resetEditState() {
         var ta = document.getElementById("outputCommands");
         var btn = document.getElementById("btnToggleEditCmd");
         var note = document.getElementById("editWarningNote");
         ta.readOnly = true;
-        ta.classList.remove("editing-warning");
+        ta.classList.remove("manual-mode", "editing-warning");
         btn.textContent = "🔓 Cho phép sửa tay";
-        btn.classList.remove("btn-danger");
-        btn.classList.add("btn-warning");
-        note.style.display = "none";
+        btn.className = "btn-action-sm warning-toggle";
+        if (note) note.style.display = "none";
     }
 
     function toggleEditCommands() {
@@ -567,11 +629,10 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
         var unlocking = ta.readOnly;
         ta.readOnly = !unlocking;
         if (unlocking) {
-            ta.classList.add("editing-warning");
+            ta.classList.add("manual-mode", "editing-warning");
             btn.textContent = "🔒 Khóa lại";
-            btn.classList.remove("btn-warning");
-            btn.classList.add("btn-danger");
-            note.style.display = "block";
+            btn.className = "btn-action-sm danger-lock";
+            if (note) note.style.display = "flex";
         } else {
             resetEditState();
         }
@@ -583,27 +644,21 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
         resetEditState();
     });
 
-    function generateConfigPreview() {
-        socket.emit('generate_config_preview', { 
-            input: document.getElementById("inputRaw").value, 
-            allow_free: document.getElementById("allowFreeInput").checked,
-            skip_errors: true
-        });
-    }
-
     function runCheckAutomation() {
         updateInputAnnotations();
-
         var inputEl = document.getElementById("inputRaw");
         var content = inputEl.value;
         
         if (content.includes("🚫 Lỗi")) {
-            alert("❌ Phát hiện cú pháp sai hoặc số không hợp lệ!\n\nHệ thống đã đánh dấu dòng lỗi trong ô nhập liệu.\nVui lòng sửa lại trước khi Kiểm tra.");
+            showAlert("Phát hiện cú pháp sai hoặc số không hợp lệ!\n\nHệ thống đã đánh dấu các dòng lỗi trong ô nhập liệu.\nVui lòng kiểm tra lại trước khi gửi lệnh.", {
+                title: "Lỗi cú pháp nhập liệu",
+                type: "error"
+            });
             return; 
         }
 
         if (!content.trim()) { 
-            alert("⚠️ Chưa nhập số điện thoại!"); 
+            showToast("Vui lòng nhập danh sách số điện thoại!", "warning");
             return; 
         }
 
@@ -626,7 +681,6 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
             isCheckingTask = false;
             document.getElementById("btnCheck").disabled = false;
             document.getElementById("btnStop").disabled = true;
-
             autoFilterAndGenerate();
         }
     });
@@ -635,7 +689,7 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
         var inputLines = document.getElementById("inputRaw").value.split('\n');
         var validLinesToConfig = [];
 
-        inputLines.forEach(line => {
+        inputLines.forEach(function(line) {
             if (line.includes("✅ OK") || line.includes("🔄 OK") || line.includes("❗ Lệch")) {
                 validLinesToConfig.push(line.split('#')[0].trimEnd());
             }
@@ -657,38 +711,54 @@ placeholder="HƯỚNG DẪN CÚ PHÁP (Tự động cắt 0/84 ở đầu):
 
     function executeConfigSSH() {
 		var cmds = document.getElementById("outputCommands").value;
-		var rawInp = document.getElementById("inputRaw").value; // Lấy nội dung gốc
+		var rawInp = document.getElementById("inputRaw").value;
 		
 		var sel = (document.querySelector('input[name="targetNode"]:checked') || {}).value || 'BOTH';
 		var targets = (sel === 'BOTH') ? ['TSSE2C', 'TSSE2D'] : [sel];
 		var nodeLabel = (sel === 'BOTH') ? 'CẢ 2 Node (TSSE2C + TSSE2D)' : ('RIÊNG ' + sel);
 		var isEdited = !document.getElementById("outputCommands").readOnly;
 		var confirmMsg = isEdited
-			? "⚠️ Lệnh đã được CHỈNH SỬA TAY — Chạy cấu hình trên " + nodeLabel + "?"
-			: ("Chạy cấu hình trên " + nodeLabel + "?");
+			? "⚠️ Lệnh đã được CHỈNH SỬA TAY.\nBạn có chắc muốn chạy cấu hình trên " + nodeLabel + "?"
+			: ("Bạn có chắc muốn chạy cấu hình trên " + nodeLabel + "?");
 
-		if (confirm(confirmMsg)) {
-			document.getElementById("btnExecute").disabled = true;
-			document.getElementById("btnStop").disabled = false;
-			// Gửi cả lệnh MML và nội dung gốc để lưu log
-			socket.emit('execute_config_ssh', {
-				commands: cmds,
-				raw_input: rawInp,
-				target_nodes: targets
-			});
-		}
+		showConfirm(confirmMsg, {
+            title: "Xác nhận chạy cấu hình SSH",
+            type: isEdited ? "warning" : "info",
+            isDanger: isEdited,
+            okText: "Tiến hành chạy",
+            onOk: function() {
+                document.getElementById("btnExecute").disabled = true;
+                document.getElementById("btnStop").disabled = false;
+                socket.emit('execute_config_ssh', {
+                    commands: cmds,
+                    raw_input: rawInp,
+                    target_nodes: targets
+                });
+            }
+        });
 	}
 
     function stopSSH() {
-        if(confirm("Dừng ngay lập tức?")) {
-            socket.emit('stop_task');
-            document.getElementById("btnStop").disabled = true;
-        }
+        showConfirm("Bạn có chắc chắn muốn DỪNG ngay lập tức tác vụ đang chạy?", {
+            title: "Dừng tiến trình SSH",
+            type: "error",
+            isDanger: true,
+            okText: "Dừng ngay",
+            onOk: function() {
+                socket.emit('stop_task');
+                document.getElementById("btnStop").disabled = true;
+                showToast("Đã gửi tín hiệu dừng tiến trình", "warning");
+            }
+        });
     }
 
     function clearLog(type) {
-        document.getElementById(type === 'C' ? "logC" : "logD").innerHTML = "";
+        var el = document.getElementById(type === 'C' ? "logC" : "logD");
+        if (el) el.innerHTML = "";
     }
+
+    // Initialize count
+    updateInputStats();
 </script>
 </body>
 </html>
