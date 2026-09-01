@@ -93,8 +93,9 @@
             
             <div class="pro-card">
                 <div class="card-head">
-                    <div class="card-head-title">
-                        <span>🔄 Điều khiển Ứng cứu khẩn cấp 11x</span>
+                    <div class="card-head-title d-flex align-items-center gap-1">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                        <span>Điều khiển Ứng cứu khẩn cấp 11x</span>
                     </div>
                     <select id="rcSelect" class="d-none" onchange="onRcChange()">
                         <option value="113" selected>113</option>
@@ -127,7 +128,8 @@
                             <span>BƯỚC 1: KIỂM TRA TRẠNG THÁI</span>
                         </button>
                         <button onclick="stopUctt()" id="btnStop" class="btn-stop" style="height: 36px; padding: 0 14px;" disabled>
-                            ⏹ DỪNG
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>
+                            <span>DỪNG</span>
                         </button>
                     </div>
 
@@ -140,12 +142,14 @@
                     <div class="row g-2 mt-1">
                         <div class="col-6">
                             <button onclick="executeUctt('changeover')" id="btnChangeover" class="btn-uctt-action btn-changeover w-100" disabled>
-                                🔀 Chuyển đổi...
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
+                                <span>Chuyển đổi...</span>
                             </button>
                         </div>
                         <div class="col-6">
                             <button onclick="executeUctt('fallback')" id="btnFallback" class="btn-uctt-action btn-fallback w-100" disabled>
-                                ↩️ Fallback (ANRAR)
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                                <span>Fallback (ANRAR)</span>
                             </button>
                         </div>
                     </div>
@@ -155,11 +159,13 @@
             <!-- PREVIEW MML COMMANDS -->
             <div class="pro-card flex-grow-1 d-flex flex-column" style="min-height: 0;">
                 <div class="card-head">
-                    <div class="card-head-title">
-                        <span>⚙️ Lệnh MML sẽ thực thi</span>
+                    <div class="card-head-title d-flex align-items-center gap-1">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        <span>Lệnh MML sẽ thực thi</span>
                     </div>
-                    <button type="button" class="btn-action-sm" onclick="copyUcttMML()">
-                        📋 Sao chép
+                    <button type="button" class="btn-action-sm d-inline-flex align-items-center gap-1" onclick="copyUcttMML()">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        <span>Sao chép</span>
                     </button>
                 </div>
                 <div class="card-body p-0 flex-grow-1">
@@ -190,8 +196,14 @@
                     <!-- Console TSSE2C -->
                     <div class="terminal-split-box" id="boxTermC">
                         <div class="node-sub-head">
-                            <span>📡 Node TSSE2C (10.202.47.54)</span>
-                            <span onclick="clearLog('C')" class="btn-term-clear">🗑️ Xóa log</span>
+                            <span class="d-inline-flex align-items-center gap-1">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                                <span>Node TSSE2C (10.202.47.54)</span>
+                            </span>
+                            <span onclick="clearLog('C')" class="btn-term-clear d-inline-flex align-items-center gap-1">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                <span>Xóa log</span>
+                            </span>
                         </div>
                         <div id="logC" class="terminal-output"></div>
                     </div>
@@ -199,8 +211,14 @@
                     <!-- Console TSSE2D -->
                     <div class="terminal-split-box" id="boxTermD">
                         <div class="node-sub-head node-d">
-                            <span>📡 Node TSSE2D (10.202.49.54)</span>
-                            <span onclick="clearLog('D')" class="btn-term-clear">🗑️ Xóa log</span>
+                            <span class="d-inline-flex align-items-center gap-1">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                                <span>Node TSSE2D (10.202.49.54)</span>
+                            </span>
+                            <span onclick="clearLog('D')" class="btn-term-clear d-inline-flex align-items-center gap-1">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                <span>Xóa log</span>
+                            </span>
                         </div>
                         <div id="logD" class="terminal-output"></div>
                     </div>

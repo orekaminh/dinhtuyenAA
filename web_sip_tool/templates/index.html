@@ -44,7 +44,10 @@
                         <button type="button" class="btn-quick-tag" onclick="insertSample('1900')">+ 1900/1800</button>
                         <button type="button" class="btn-quick-tag" onclick="insertSample('cfw')">+ CFW</button>
                         <button type="button" class="btn-quick-tag" onclick="insertSample('del')">+ Lệnh Xóa</button>
-                        <button type="button" class="btn-quick-tag text-danger" onclick="clearInput()">🗑️ Xóa trắng</button>
+                        <button type="button" class="btn-quick-tag text-danger d-inline-flex align-items-center gap-1" onclick="clearInput()">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            <span>Xóa trắng</span>
+                        </button>
                     </div>
                 </div>
 
@@ -85,7 +88,10 @@ Ví dụ:
                     <!-- Accordion Hướng dẫn cú pháp thu gọn -->
                     <details class="syntax-accordion">
                         <summary class="syntax-summary">
-                            <span>💡 Xem bảng hướng dẫn cú pháp định tuyến (Tự động cắt 0/84)</span>
+                            <span class="d-inline-flex align-items-center gap-1">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                                <span>Xem bảng hướng dẫn cú pháp định tuyến (Tự động cắt 0/84)</span>
+                            </span>
                             <span style="font-size: 10px;">▼</span>
                         </summary>
                         <div class="syntax-content">
@@ -99,7 +105,7 @@ Ví dụ:
 
                     <button onclick="runCheckAutomation()" id="btnCheck" class="btn-step1 mt-1">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                        <span>🔍 BƯỚC 1: KIỂM TRA TRẠNG THÁI TỔNG ĐÀI</span>
+                        <span>BƯỚC 1: KIỂM TRA TRẠNG THÁI TỔNG ĐÀI</span>
                     </button>
                 </div>
             </div>
@@ -124,19 +130,29 @@ Ví dụ:
                 <div id="checkSummaryBox" class="check-summary-banner" style="display: none;">
                     <span class="text-muted fw-bold" style="font-size: 11px;">Phân tích:</span>
                     <div class="summary-stat-item count-create" title="Số chưa khai báo, sẵn sàng tạo mới">
-                        <span>➕</span> <span id="cntCreate">0</span> <span>Tạo mới</span>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        <span id="cntCreate">0</span>
+                        <span>Tạo mới</span>
                     </div>
                     <div class="summary-stat-item count-change" title="Số đã có, cần chuyển hướng RC mới">
-                        <span>🔄</span> <span id="cntChange">0</span> <span>Chuyển hướng</span>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                        <span id="cntChange">0</span>
+                        <span>Chuyển hướng</span>
                     </div>
                     <div class="summary-stat-item count-match" title="Số đã đúng hướng, bỏ qua không cần can thiệp">
-                        <span>✓</span> <span id="cntMatch">0</span> <span>Đã đúng hướng</span>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span id="cntMatch">0</span>
+                        <span>Đã đúng hướng</span>
                     </div>
                     <div class="summary-stat-item count-inherit" title="Số đang kế thừa từ dải cha">
-                        <span>⚡</span> <span id="cntInherit">0</span> <span>Kế thừa</span>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                        <span id="cntInherit">0</span>
+                        <span>Kế thừa</span>
                     </div>
                     <div class="summary-stat-item count-error" title="Số bị lệch giữa 2 Node hoặc có lỗi">
-                        <span>❗</span> <span id="cntError">0</span> <span>Lệch / Lỗi</span>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                        <span id="cntError">0</span>
+                        <span>Lệch / Lỗi</span>
                     </div>
                 </div>
 
@@ -164,11 +180,13 @@ Ví dụ:
                         <span id="mmlCountBadge" class="badge bg-success" style="font-size: 11px; display: none;">0 lệnh</span>
                     </div>
                     <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn-action-sm" onclick="copyMMLCommands()">
-                            📋 Sao chép
+                        <button type="button" class="btn-action-sm d-inline-flex align-items-center gap-1" onclick="copyMMLCommands()">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                            <span>Sao chép</span>
                         </button>
-                        <button type="button" id="btnToggleEditCmd" onclick="toggleEditCommands()" class="btn-action-sm warning-toggle">
-                            🔓 Cho phép sửa tay
+                        <button type="button" id="btnToggleEditCmd" onclick="toggleEditCommands()" class="btn-action-sm warning-toggle d-inline-flex align-items-center gap-1">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>
+                            <span>Cho phép sửa tay</span>
                         </button>
                     </div>
                 </div>
@@ -176,7 +194,8 @@ Ví dụ:
                     <div class="mml-editor-wrapper">
                         <textarea id="outputCommands" class="mml-textarea" rows="4" readonly placeholder="Hệ thống sẽ tự động lọc bỏ các số đã đúng hướng và sinh lệnh MML tối ưu tại đây sau khi KIỂM TRA xong..."></textarea>
                         <div id="editWarningNote" class="manual-alert-strip" style="display: none;">
-                            ⚠️ Đang chỉnh sửa tay — lệnh thực thi sẽ chạy chính xác theo nội dung bạn chỉnh sửa bên trên.
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                            <span>Đang chỉnh sửa tay — lệnh thực thi sẽ chạy chính xác theo nội dung bạn chỉnh sửa bên trên.</span>
                         </div>
                     </div>
                 </div>
@@ -192,7 +211,7 @@ Ví dụ:
                     <div class="node-picker-group">
                         <label class="node-radio-label selected" id="lblBoth" onclick="selectTargetRadio('tgtBoth')">
                             <input type="radio" name="targetNode" id="tgtBoth" value="BOTH" checked>
-                            <span>⚡ Cả 2 Node</span>
+                            <span>Cả 2 Node</span>
                         </label>
                         <label class="node-radio-label" id="lbl2C" onclick="selectTargetRadio('tgt2C')">
                             <input type="radio" name="targetNode" id="tgt2C" value="TSSE2C">
@@ -207,10 +226,12 @@ Ví dụ:
                 <div class="card-body p-2">
                     <div class="d-flex gap-2">
                         <button onclick="executeConfigSSH()" id="btnExecute" class="btn-step2" disabled>
-                            ▶ BƯỚC 2: THỰC HIỆN CẤU HÌNH
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                            <span>BƯỚC 2: THỰC HIỆN CẤU HÌNH</span>
                         </button>
                         <button onclick="stopSSH()" id="btnStop" class="btn-stop" disabled>
-                            ⏹ DỪNG
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>
+                            <span>DỪNG</span>
                         </button>
                     </div>
                 </div>
@@ -237,8 +258,14 @@ Ví dụ:
                     <!-- Console TSSE2C -->
                     <div class="terminal-split-box" id="boxTermC">
                         <div class="node-sub-head">
-                            <span>📡 Node TSSE2C (10.202.47.54)</span>
-                            <span onclick="clearLog('C')" class="btn-term-clear">🗑️ Xóa log</span>
+                            <span class="d-inline-flex align-items-center gap-1">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                                <span>Node TSSE2C (10.202.47.54)</span>
+                            </span>
+                            <span onclick="clearLog('C')" class="btn-term-clear d-inline-flex align-items-center gap-1">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                <span>Xóa log</span>
+                            </span>
                         </div>
                         <div id="logC" class="terminal-output"></div>
                     </div>
@@ -246,8 +273,14 @@ Ví dụ:
                     <!-- Console TSSE2D -->
                     <div class="terminal-split-box" id="boxTermD">
                         <div class="node-sub-head node-d">
-                            <span>📡 Node TSSE2D (10.202.49.54)</span>
-                            <span onclick="clearLog('D')" class="btn-term-clear">🗑️ Xóa log</span>
+                            <span class="d-inline-flex align-items-center gap-1">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                                <span>Node TSSE2D (10.202.49.54)</span>
+                            </span>
+                            <span onclick="clearLog('D')" class="btn-term-clear d-inline-flex align-items-center gap-1">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                <span>Xóa log</span>
+                            </span>
                         </div>
                         <div id="logD" class="terminal-output"></div>
                     </div>

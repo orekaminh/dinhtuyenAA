@@ -73,7 +73,8 @@
         <!-- Hàng 1: Tiêu đề + Chọn mốc thời gian nhanh + Xuất CSV -->
         <div class="card-head py-2">
             <div class="card-head-title d-flex align-items-center gap-2">
-                <span>🕒 Lịch sử Tác động & Nhật ký Hệ thống</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <span>Lịch sử Tác động & Nhật ký Hệ thống</span>
                 <span class="badge bg-light text-primary border fw-bold" style="font-size: 11px;">
                     {{ pagination.total }} bản ghi
                 </span>
@@ -136,7 +137,8 @@
                     
                     {% if search_query or start_date or end_date %}
                         <a href="{{ url_for('view_history') }}" class="btn btn-outline-secondary text-nowrap d-inline-flex align-items-center gap-1" style="height: 34px; padding: 0 12px; font-size: 12px;">
-                            <span>↺ Đặt lại</span>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                            <span>Đặt lại</span>
                         </a>
                     {% endif %}
                 </div>
@@ -150,8 +152,8 @@
             <table class="history-table">
                 <thead>
                     <tr>
-                        <th style="width: 16%;">Thời gian thực hiện</th>
-                        <th style="width: 14%;">Người thực hiện</th>
+                        <th style="width: 16%; text-align: center;">Thời gian thực hiện</th>
+                        <th style="width: 14%; text-align: center;">Người thực hiện</th>
                         <th style="width: 62%;">Khối lệnh MML đã thực thi</th>
                         <th style="width: 8%; text-align: center;">Thao tác</th>
                     </tr>
@@ -159,18 +161,22 @@
                 <tbody id="historyBody">
                     {% for log in pagination.items %}
                     <tr>
-                        <td class="text-muted" style="font-size: 12px; font-family: var(--font-mono); font-weight: 600;">
+                        <td class="text-muted" style="font-size: 12px; font-family: var(--font-mono); font-weight: 600; text-align: center; white-space: nowrap;">
                             {{ log.timestamp.strftime('%d/%m/%Y %H:%M:%S') }}
                         </td>
-                        <td>
-                            <span class="badge-status ok" style="font-size: 11.5px;">👤 {{ log.username }}</span>
+                        <td style="text-align: center;">
+                            <span class="badge-status ok d-inline-flex align-items-center gap-1" style="font-size: 11.5px;">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                <span>{{ log.username }}</span>
+                            </span>
                         </td>
                         <td>
                             <div class="cmd-display-box" id="cmd-{{ log.id }}">{{ log.commands }}</div>
                         </td>
                         <td style="text-align: center;">
-                            <button type="button" class="btn-action-sm py-1 px-2" style="font-size: 11px;" onclick="copyLogCmd('cmd-{{ log.id }}')">
-                                📋 Sao chép
+                            <button type="button" class="btn-action-sm py-1 px-2 d-inline-flex align-items-center gap-1" style="font-size: 11px;" onclick="copyLogCmd('cmd-{{ log.id }}')">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                <span>Sao chép</span>
                             </button>
                         </td>
                     </tr>

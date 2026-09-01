@@ -90,8 +90,9 @@
             
             <div class="pro-card" style="flex: 1; display: flex; flex-direction: column;">
                 <div class="card-head">
-                    <div id="freshHeader" class="card-head-title" style="color: #d97706; font-size: 11.5px;">
-                        ⚠️ Dữ liệu cache — Hãy bấm Quét
+                    <div id="freshHeader" class="card-head-title d-flex align-items-center gap-1" style="color: #d97706; font-size: 11.5px;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                        <span>Dữ liệu cache — Hãy bấm Quét</span>
                     </div>
                 </div>
                 <div class="card-body" style="flex: 1; display: flex; flex-direction: column; padding: 8px;">
@@ -102,8 +103,9 @@
                     
                     <input type="text" id="search" class="code-textarea py-1 px-2 mb-1" style="height: 28px; font-size: 11px;" placeholder="🔍 Tìm nhanh số..." oninput="renderTable()">
                     
-                    <div class="text-muted" style="font-size: 10.5px; margin-bottom: 3px;">
-                        💡 Chọn dòng (Ctrl/Shift) rồi <b>chuột phải</b> để gỡ.
+                    <div class="text-muted d-flex align-items-center gap-1" style="font-size: 10.5px; margin-bottom: 3px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                        <span>Chọn dòng (Ctrl/Shift) rồi <b>chuột phải</b> để gỡ.</span>
                     </div>
 
                     <div id="tableWrap" style="flex: 1;">
@@ -126,8 +128,9 @@
             {% if current_user.username == 'admin' %}
             <div class="pro-card">
                 <div class="card-head py-1 px-2">
-                    <div class="card-head-title" style="font-size: 11.5px;">
-                        <span>⬆️ Nhập lịch sử JSON (admin)</span>
+                    <div class="card-head-title d-flex align-items-center gap-1" style="font-size: 11.5px;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        <span>Nhập lịch sử JSON (admin)</span>
                     </div>
                 </div>
                 <div class="card-body p-2">
@@ -148,8 +151,9 @@
         <div class="col-md-4 a2p-col-scroll d-flex flex-column gap-2">
             <div class="pro-card" style="height: 100%;">
                 <div class="card-head">
-                    <div class="card-head-title">
-                        <span>⚙️ Tác vụ Chặn / Gỡ</span>
+                    <div class="card-head-title d-flex align-items-center gap-1">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        <span>Tác vụ Chặn / Gỡ</span>
                     </div>
                 </div>
                 <div class="card-body" style="height: 100%; display: flex; flex-direction: column;">
@@ -178,7 +182,8 @@
                             3. Tiến hành chặn/gỡ
                         </button>
                         <button onclick="stopTask()" id="btnStop" class="btn-stop" style="height: 36px;" disabled>
-                            ⏹ DỪNG
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>
+                            <span>DỪNG</span>
                         </button>
                     </div>
                 </div>
@@ -191,11 +196,16 @@
                 <div class="terminal-top-header">
                     <div class="terminal-title">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-                        <span>SSH Console TSSN2D (10.204.161.61)</span>
+                        <span>SSH CONSOLE TSSN2D</span>
                     </div>
-                    <span onclick="clearLog()" class="btn-term-clear">🗑️ Xóa log</span>
+                    <span onclick="clearLog()" class="btn-term-clear d-inline-flex align-items-center gap-1">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        <span>Xóa log</span>
+                    </span>
                 </div>
-                <div id="logA" class="terminal-output" style="font-size: 12px; line-height: 1.55;"></div>
+                <div class="terminal-views-wrapper">
+                    <div id="logA" class="terminal-output p-2" style="height: 100%;"></div>
+                </div>
             </div>
         </div>
 
