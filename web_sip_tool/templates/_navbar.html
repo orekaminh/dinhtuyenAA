@@ -205,11 +205,16 @@
     <div class="app-usermenu" id="appUserMenu">
         <button type="button" class="app-user-btn" onclick="appToggleUserMenu(event)">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-            <span>{{ current_user.username }}</span>
+            <span>{{ current_user.username }}{% if win_rdp_user %} <span style="opacity: 0.85; font-size: 11px; font-weight: 400; color: #93c5fd;">(Win: {{ win_rdp_user }})</span>{% endif %}</span>
             <span class="app-caret">&#9660;</span>
         </button>
         <div class="app-menu-panel">
             <div class="app-menu-head">Tài khoản</div>
+            {% if win_rdp_user %}
+                <div style="padding: 4px 12px 8px; font-size: 11px; color: #4b5563; border-bottom: 1px solid #f3f4f6;">
+                    🖥️ Windows: <strong style="color: #1e293b;">{{ win_rdp_user }}</strong>
+                </div>
+            {% endif %}
             {% if current_user.username == 'admin' %}
                 <a class="app-menu-item" href="{{ url_for('manage_users_web') }}">Quản lý User</a>
             {% endif %}

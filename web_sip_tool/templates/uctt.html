@@ -254,6 +254,9 @@
     var currentTermView = 'split';
     var ucttStates = {};
     var activeRc = '113';
+    var activeUcttJobId = null;
+    var activeUcttJobSeq = 0;
+    var activeUcttJobType = null;
 
     function rcDisplayName(rc) {
         if ((rc || '').indexOf('113') === 0) return '113';
@@ -317,6 +320,10 @@
                 version: 2,
                 activeRc: getSelectedRc(),
                 states: ucttStates,
+                activeJobId: activeUcttJobId,
+                activeJobSeq: activeUcttJobSeq,
+                activeJobType: activeUcttJobType,
+                isBusy: isBusy,
                 timestamp: Date.now()
             }));
         } catch (e) {
@@ -387,6 +394,12 @@
             ['113', '114', '115 (115/1155/1157)'].forEach(function(rc){ getRcState(rc); });
             updateRcSelection(activeRc);
             renderRcState(activeRc);
+            if (state) {
+                activeUcttJobId = state.activeJobId || null;
+                activeUcttJobSeq = Number(state.activeJobSeq) || 0;
+                activeUcttJobType = state.activeJobType || null;
+                if (activeUcttJobId && activeUcttJobType) setBusy(true);
+            }
             saveUcttState();
         } catch (e) {
             isRestoringUctt = false;
@@ -408,7 +421,15 @@
     }
 
     // --- LOGGING ---
-    socket.on('log', function(data) {
+    function acceptUcttJobEvent(data) {
+        if (!data || !data.job_id) return true;
+        if (data.job_id !== activeUcttJobId || data.job_seq <= activeUcttJobSeq) return false;
+        activeUcttJobSeq = data.job_seq;
+        return true;
+    }
+
+    function handleUcttLog(data) {
+        if (!acceptUcttJobEvent(data)) return;
         var targetLog = document.getElementById(data.node === 'TSSE2C' ? "logC" : "logD");
         if (targetLog) {
             var span = document.createElement("span");
@@ -418,9 +439,11 @@
             targetLog.scrollTop = targetLog.scrollHeight;
             saveUcttState();
         }
-    });
+    }
+    socket.on('log', handleUcttLog);
 
-    socket.on('log_system', function(data) {
+    function handleUcttSystemLog(data) {
+        if (!acceptUcttJobEvent(data)) return;
         ['logC', 'logD'].forEach(function(id) {
             var el = document.getElementById(id);
             if (el) {
@@ -432,6 +455,52 @@
             }
         });
         saveUcttState();
+    }
+    socket.on('log_system', handleUcttSystemLog);
+
+    function createUcttJobId() {
+        return (window.crypto && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+    }
+
+    function resumeActiveUcttJob() {
+        if (!activeUcttJobId || !socket.connected) return;
+        socket.emit('resume_route_job', {
+            job_id: activeUcttJobId,
+            after_seq: activeUcttJobSeq
+        });
+    }
+
+    function applyUcttJobEvent(event) {
+        if (!event) return;
+        if (event.event === 'log') handleUcttLog(event.data);
+        else if (event.event === 'log_system') handleUcttSystemLog(event.data);
+        else if (event.event === 'uctt_check_result') handleUcttCheckResult(event.data);
+        else if (event.event === 'uctt_finished') handleUcttFinished(event.data);
+    }
+
+    socket.on('connect', resumeActiveUcttJob);
+    socket.on('route_job_snapshot', function(data) {
+        if (!activeUcttJobId || !data || data.job_id !== activeUcttJobId) return;
+        if (!data.found) {
+            activeUcttJobId = null;
+            activeUcttJobType = null;
+            setBusy(false);
+            setStatus('Không thể nối lại tác vụ UCTT. Tiến trình máy chủ có thể đã khởi động lại.', 'danger');
+            saveUcttState();
+            showAlert('Không thể nối lại tác vụ UCTT đang chạy.', {
+                title: 'Mất trạng thái tác vụ',
+                type: 'warning'
+            });
+            return;
+        }
+        activeUcttJobType = data.kind || activeUcttJobType;
+        (data.events || []).forEach(applyUcttJobEvent);
+        if (activeUcttJobId && data.status === 'running') {
+            setBusy(true);
+            saveUcttState();
+        }
     });
 
     function clearLog(type) {
@@ -497,13 +566,19 @@
             changeover: { enabled: false, label: '', action: null, commands: [] },
             fallback: { enabled: false, label: '', action: null, commands: [] }
         };
+        activeUcttJobId = createUcttJobId();
+        activeUcttJobSeq = 0;
+        activeUcttJobType = 'uctt_check';
         setBusy(true);
         setStatus("Trạng thái RC=" + rc + ": Đang kiểm tra 2C & 2D...", "primary");
-        socket.emit('run_uctt_check', { rc: rc });
+        socket.emit('run_uctt_check', { job_id: activeUcttJobId, rc: rc });
         saveUcttState();
     }
 
-    socket.on('uctt_check_result', function(data) {
+    function handleUcttCheckResult(data) {
+        if (!acceptUcttJobEvent(data)) return;
+        activeUcttJobId = null;
+        activeUcttJobType = null;
         setBusy(false);
         setStatus(data.status_text, data.status_color);
 
@@ -534,7 +609,8 @@
         document.getElementById("cmdPreview").textContent =
             preview.length ? preview.join('\n') : "# Không có hành động khả dụng (xem trạng thái ở trên).";
         saveUcttState();
-    });
+    }
+    socket.on('uctt_check_result', handleUcttCheckResult);
 
     // --- THỰC THI ---
     function executeUctt(type) {
@@ -560,10 +636,17 @@
                 okText: "Tiến hành chạy",
                 onOk: function() {
                     var execRc = proposed.rc, execLabel = info.label, execAction = info.action;
+                    activeUcttJobId = createUcttJobId();
+                    activeUcttJobSeq = 0;
+                    activeUcttJobType = 'uctt_execute';
                     setBusy(true);
                     setStatus("Trạng thái RC=" + execRc + ": Đang thực hiện '" + execLabel + "'...", "warning");
                     document.getElementById("cmdPreview").textContent = cmds.join('\n');
-                    socket.emit('execute_uctt', { rc: execRc, action: execAction });
+                    socket.emit('execute_uctt', {
+                        job_id: activeUcttJobId,
+                        rc: execRc,
+                        action: execAction
+                    });
 
                     proposed.changeover = { enabled: false, label: '', action: null, commands: [] };
                     proposed.fallback = { enabled: false, label: '', action: null, commands: [] };
@@ -575,18 +658,24 @@
         }
     }
 
-    socket.on('uctt_finished', function(data) {
+    function handleUcttFinished(data) {
+        if (!acceptUcttJobEvent(data)) return;
+        activeUcttJobId = null;
+        activeUcttJobType = null;
         var rc = data.rc || proposed.rc || document.getElementById("rcSelect").value;
         if (data.ok) {
             setStatus("Trạng thái RC=" + rc + ": ✅ Đã hoàn tất", "success");
             showAlert("Đã hoàn tất thực thi UCTT trên các node!", { title: "Thực thi thành công", type: "success" });
+            saveUcttState();
+            setTimeout(runUcttCheck, 700);
         } else {
             setStatus("Trạng thái RC=" + rc + ": ❌ Thực thi thất bại / đã dừng", "danger");
             showAlert("Thực thi UCTT thất bại hoặc bị dừng. Vui lòng xem console.", { title: "Thực thi thất bại", type: "error" });
+            setBusy(false);
+            saveUcttState();
         }
-        saveUcttState();
-        setTimeout(runUcttCheck, 700);
-    });
+    }
+    socket.on('uctt_finished', handleUcttFinished);
 
     // --- DỪNG ---
     function stopUctt() {
@@ -596,7 +685,7 @@
             isDanger: true,
             okText: "Dừng ngay",
             onOk: function() {
-                socket.emit('stop_task');
+                socket.emit('stop_task', { job_id: activeUcttJobId });
                 setStatus("Trạng thái: Đã gửi lệnh DỪNG... (chờ tiến trình đóng)", "danger");
                 showToast("Đã gửi tín hiệu dừng tiến trình", "warning");
                 saveUcttState();
@@ -646,6 +735,7 @@
 
     // Khôi phục trạng thái UCTT khi vào trang
     restoreUcttState();
+    resumeActiveUcttJob();
     window.addEventListener('beforeunload', saveUcttState);
 </script>
 </body>

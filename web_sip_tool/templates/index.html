@@ -299,7 +299,11 @@ Ví dụ:
 <script>
     var socket = io({ transports: ['websocket', 'polling'] });
     var syncCache = {};
-    var isCheckingTask = false; 
+    var isCheckingTask = false;
+    var activeRouteJobId = null;
+    var activeRouteJobSeq = 0;
+    var activeRouteJobType = null;
+    var isExecutingRouteJob = false;
 
     // --- SESSION STATE PERSISTENCE (LƯU & KHÔI PHỤC KHI CHUYỂN TAB) ---
     var STATE_KEY = 'snoc2_sip_route_state';
@@ -324,6 +328,11 @@ Ví dụ:
                 logC: logCEl ? logCEl.innerHTML : "",
                 logD: logDEl ? logDEl.innerHTML : "",
                 isManualEdit: outCmdsEl ? !outCmdsEl.readOnly : false,
+                activeRouteJobId: activeRouteJobId,
+                activeRouteJobSeq: activeRouteJobSeq,
+                activeRouteJobType: activeRouteJobType,
+                isCheckingTask: isCheckingTask,
+                isExecutingRouteJob: isExecutingRouteJob,
                 timestamp: Date.now()
             };
             sessionStorage.setItem(STATE_KEY, JSON.stringify(state));
@@ -411,7 +420,18 @@ Ví dụ:
                 if (lD) lD.innerHTML = state.logD;
             }
 
-            // 7. Cập nhật thống kê, tô màu syntax và banner
+            // 7. Khôi phục tác vụ cấu hình đang chạy để có thể nối lại Socket.IO.
+            activeRouteJobId = state.activeRouteJobId || null;
+            activeRouteJobSeq = Number(state.activeRouteJobSeq) || 0;
+            activeRouteJobType = state.activeRouteJobType
+                || (state.isExecutingRouteJob ? 'execute' : (state.isCheckingTask ? 'check' : null));
+            isCheckingTask = Boolean(activeRouteJobId && activeRouteJobType === 'check');
+            isExecutingRouteJob = Boolean(state.isExecutingRouteJob && activeRouteJobId);
+            if (activeRouteJobId && activeRouteJobType) {
+                setRouteExecutionBusy(true);
+            }
+
+            // 8. Cập nhật thống kê, tô màu syntax và banner
             updateInputStats();
             renderInputBackdrop();
             updateInputAnnotations();
@@ -685,7 +705,15 @@ Ví dụ:
     }
 
     // --- LOGGING ---
-    socket.on('log', function(data) {
+    function acceptRouteJobEvent(data) {
+        if (!data || !data.job_id) return true;
+        if (data.job_id !== activeRouteJobId || data.job_seq <= activeRouteJobSeq) return false;
+        activeRouteJobSeq = data.job_seq;
+        return true;
+    }
+
+    function handleRouteLog(data) {
+        if (!acceptRouteJobEvent(data)) return;
         var targetLog = document.getElementById(data.node === 'TSSE2C' ? "logC" : "logD");
         if (targetLog) {
             var span = document.createElement("span");
@@ -695,21 +723,30 @@ Ví dụ:
             targetLog.scrollTop = targetLog.scrollHeight;
             saveRouteTabState();
         }
-    });
+    }
+    socket.on('log', handleRouteLog);
     
     // Lắng nghe sự kiện chạy xong từ Server để mở lại nút
-    socket.on('execution_finished', function(data) {
-        document.getElementById("btnExecute").disabled = false;
-        document.getElementById("btnStop").disabled = true;
+    function handleExecutionFinished(data) {
+        if (!acceptRouteJobEvent(data)) return;
+        isExecutingRouteJob = false;
+        activeRouteJobId = null;
+        activeRouteJobType = null;
+        setRouteExecutionBusy(false);
         saveRouteTabState();
         if (data && data.ok) {
             showAlert("Đã thực thi thành công lệnh cấu hình trên các Node!", { title: "Thực thi thành công", type: "success" });
         } else {
-            showAlert("Thực thi chưa thành công trên ít nhất một Node. Vui lòng xem console và kiểm tra lại.", { title: "Thực thi thất bại", type: "error" });
+            var errorMessage = data && data.error
+                ? data.error
+                : "Thực thi chưa thành công trên ít nhất một Node. Vui lòng xem console và kiểm tra lại.";
+            showAlert(errorMessage, { title: "Thực thi thất bại", type: "error" });
         }
-    });
+    }
+    socket.on('execution_finished', handleExecutionFinished);
     
-    socket.on('log_system', function(data) {
+    function handleRouteSystemLog(data) {
+        if (!acceptRouteJobEvent(data)) return;
         ['logC', 'logD'].forEach(function(id) {
             var el = document.getElementById(id);
             if (el) {
@@ -721,10 +758,62 @@ Ví dụ:
             }
         });
         saveRouteTabState();
+    }
+    socket.on('log_system', handleRouteSystemLog);
+
+    function applyRouteJobEvent(event) {
+        if (!event) return;
+        if (event.event === 'log') handleRouteLog(event.data);
+        else if (event.event === 'log_system') handleRouteSystemLog(event.data);
+        else if (event.event === 'clear_results') handleClearResults(event.data);
+        else if (event.event === 'check_result_item') handleCheckResultItem(event.data);
+        else if (event.event === 'check_finished') handleCheckFinished(event.data);
+        else if (event.event === 'execution_finished') handleExecutionFinished(event.data);
+    }
+
+    function setRouteExecutionBusy(isBusy) {
+        document.getElementById("btnCheck").disabled = isBusy;
+        document.getElementById("btnExecute").disabled = isBusy;
+        document.getElementById("btnStop").disabled = !isBusy;
+    }
+
+    function resumeActiveRouteJob() {
+        if (!activeRouteJobId || !socket.connected) return;
+        socket.emit('resume_route_job', {
+            job_id: activeRouteJobId,
+            after_seq: activeRouteJobSeq
+        });
+    }
+
+    socket.on('connect', resumeActiveRouteJob);
+    socket.on('route_job_snapshot', function(data) {
+        if (!activeRouteJobId || !data || data.job_id !== activeRouteJobId) return;
+        if (!data.found) {
+            activeRouteJobId = null;
+            activeRouteJobType = null;
+            isCheckingTask = false;
+            isExecutingRouteJob = false;
+            setRouteExecutionBusy(false);
+            saveRouteTabState();
+            showAlert("Không thể nối lại tác vụ cấu hình. Tiến trình máy chủ có thể đã khởi động lại.", {
+                title: "Mất trạng thái tác vụ",
+                type: "warning"
+            });
+            return;
+        }
+        activeRouteJobType = data.kind || activeRouteJobType;
+        isCheckingTask = activeRouteJobType === 'check';
+        isExecutingRouteJob = activeRouteJobType === 'execute';
+        (data.events || []).forEach(applyRouteJobEvent);
+        if (activeRouteJobId && data.status === 'running') {
+            setRouteExecutionBusy(true);
+            saveRouteTabState();
+        }
     });
 
     // --- CHECK RESULTS LOGIC ---
-    socket.on('clear_results', function() {
+    function handleClearResults(data) {
+        if (!acceptRouteJobEvent(data)) return;
         document.getElementById("resBody").innerHTML = ""; 
         syncCache = {};
         cleanInputComments();
@@ -733,9 +822,11 @@ Ví dụ:
         var badge = document.getElementById("mmlCountBadge");
         if (badge) badge.style.display = "none";
         saveRouteTabState();
-    });
+    }
+    socket.on('clear_results', handleClearResults);
 
-    socket.on('check_result_item', function(data) {
+    function handleCheckResultItem(data) {
+        if (!acceptRouteJobEvent(data)) return;
         var num = data.b_num;
         if (!syncCache[num]) syncCache[num] = { C: null, D: null };
         if (data.node === 'TSSE2C') syncCache[num].C = data;
@@ -744,7 +835,8 @@ Ví dụ:
         updateResultTable(num);
         updateInputAnnotations();
         saveRouteTabState();
-    });
+    }
+    socket.on('check_result_item', handleCheckResultItem);
 
     function updateResultTable(b_num) {
         var tbody = document.getElementById("resBody");
@@ -1118,24 +1210,32 @@ Ví dụ:
             return; 
         }
 
+        activeRouteJobId = (window.crypto && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+        activeRouteJobSeq = 0;
+        activeRouteJobType = 'check';
         isCheckingTask = true;
-        document.getElementById("btnCheck").disabled = true;
-        document.getElementById("btnExecute").disabled = true;
-        document.getElementById("btnStop").disabled = false;
+        setRouteExecutionBusy(true);
+        isExecutingRouteJob = false;
         resetEditState();
         document.getElementById("outputCommands").value = "Đang kiểm tra dữ liệu trên tổng đài... Vui lòng đợi.";
 
         clearLog('C'); clearLog('D');
         socket.emit('run_check_automation', { 
+            job_id: activeRouteJobId,
             input: content, 
             allow_free: document.getElementById("allowFreeInput").checked
         });
         saveRouteTabState();
     }
 
-    socket.on('check_finished', function(data) {
+    function handleCheckFinished(data) {
+        if (!acceptRouteJobEvent(data)) return;
         if (isCheckingTask) {
             isCheckingTask = false;
+            activeRouteJobId = null;
+            activeRouteJobType = null;
             document.getElementById("btnCheck").disabled = false;
             document.getElementById("btnStop").disabled = true;
             if (data && data.ok) {
@@ -1143,14 +1243,18 @@ Ví dụ:
             } else {
                 document.getElementById("outputCommands").value = "# Kiểm tra chưa thành công trên đủ 2 Node. Không sinh lệnh cấu hình.";
                 document.getElementById("btnExecute").disabled = true;
-                showAlert("Kiểm tra thất bại hoặc bị dừng trên ít nhất một Node. Hệ thống không sinh lệnh cấu hình.", {
+                var errorMessage = data && data.error
+                    ? data.error
+                    : "Kiểm tra thất bại hoặc bị dừng trên ít nhất một Node. Hệ thống không sinh lệnh cấu hình.";
+                showAlert(errorMessage, {
                     title: "Kiểm tra chưa thành công",
                     type: "error"
                 });
             }
             saveRouteTabState();
         }
-    });
+    }
+    socket.on('check_finished', handleCheckFinished);
 
     function autoFilterAndGenerate() {
         var inputLines = document.getElementById("inputRaw").value.split('\n');
@@ -1195,9 +1299,15 @@ Ví dụ:
             isDanger: isEdited,
             okText: "Tiến hành chạy",
             onOk: function() {
-                document.getElementById("btnExecute").disabled = true;
-                document.getElementById("btnStop").disabled = false;
+                activeRouteJobId = (window.crypto && crypto.randomUUID)
+                    ? crypto.randomUUID()
+                    : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+                activeRouteJobSeq = 0;
+                activeRouteJobType = 'execute';
+                isExecutingRouteJob = true;
+                setRouteExecutionBusy(true);
                 socket.emit('execute_config_ssh', {
+                    job_id: activeRouteJobId,
                     commands: cmds,
                     raw_input: rawInp,
                     target_nodes: targets
@@ -1214,7 +1324,7 @@ Ví dụ:
             isDanger: true,
             okText: "Dừng ngay",
             onOk: function() {
-                socket.emit('stop_task');
+                socket.emit('stop_task', { job_id: activeRouteJobId });
                 document.getElementById("btnStop").disabled = true;
                 showToast("Đã gửi tín hiệu dừng tiến trình", "warning");
                 saveRouteTabState();
@@ -1232,6 +1342,7 @@ Ví dụ:
     restoreRouteTabState();
     updateInputStats();
     renderInputBackdrop();
+    resumeActiveRouteJob();
 
     window.addEventListener('beforeunload', saveRouteTabState);
 </script>

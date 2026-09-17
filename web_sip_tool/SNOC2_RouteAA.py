@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from datetime import datetime, timedelta
-from flask_socketio import SocketIO, emit, disconnect
+from flask_socketio import SocketIO, emit, disconnect, join_room
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_wtf.csrf import CSRFProtect
@@ -13,25 +13,109 @@ import re
 import os
 import sys
 import getpass
+import socket
+import struct
 from logic_core import generate_commands
 import csv
 import json
 from io import StringIO
 from flask import Response
 
-# --- HELPER: XÁC ĐỊNH USER THỰC THI (KẾT HỢP WEB USER + WINDOWS OS USER) ---
+# --- HELPER: TỰ ĐỘNG DÒ TÌM WINDOWS USER CỦA PHIÊN RDP TỪ PORT KẾT NỐI ---
+def _lookup_pid_from_port(port):
+    """Tra cứu PID của tiến trình client từ cổng kết nối TCP (hỗ trợ cả IPv4 và IPv6)"""
+    if os.name != 'nt' or not port:
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        # 1. Thử IPv4 (AF_INET = 2, TCP_TABLE_OWNER_PID_ALL = 5)
+        size4 = wintypes.DWORD(0)
+        ctypes.windll.iphlpapi.GetExtendedTcpTable(None, ctypes.byref(size4), False, 2, 5, 0)
+        if size4.value > 0:
+            buf4 = ctypes.create_string_buffer(size4.value)
+            if ctypes.windll.iphlpapi.GetExtendedTcpTable(buf4, ctypes.byref(size4), False, 2, 5, 0) == 0:
+                num_entries = struct.unpack_from('I', buf4.raw, 0)[0]
+                for i in range(num_entries):
+                    offset = 4 + i * 24
+                    state, laddr, lport, raddr, rport, pid = struct.unpack_from('IIIIII', buf4.raw, offset)
+                    if socket.ntohs(lport & 0xffff) == port:
+                        return pid
+
+        # 2. Thử IPv6 (AF_INET6 = 23, TCP_TABLE_OWNER_PID_ALL = 5)
+        size6 = wintypes.DWORD(0)
+        ctypes.windll.iphlpapi.GetExtendedTcpTable(None, ctypes.byref(size6), False, 23, 5, 0)
+        if size6.value > 0:
+            buf6 = ctypes.create_string_buffer(size6.value)
+            if ctypes.windll.iphlpapi.GetExtendedTcpTable(buf6, ctypes.byref(size6), False, 23, 5, 0) == 0:
+                num_entries6 = struct.unpack_from('I', buf6.raw, 0)[0]
+                for i in range(num_entries6):
+                    offset = 4 + i * 56
+                    lport = struct.unpack_from('I', buf6.raw, offset + 20)[0]
+                    pid = struct.unpack_from('I', buf6.raw, offset + 52)[0]
+                    if socket.ntohs(lport & 0xffff) == port:
+                        return pid
+    except Exception:
+        pass
+    return None
+
+def get_rdp_user_from_port(port):
+    """Lấy tên Windows RDP Username của phiên đang mở trình duyệt kết nối vào cổng port"""
+    if os.name != 'nt' or not port:
+        return None
+    try:
+        pid = _lookup_pid_from_port(port)
+        if not pid:
+            return None
+        import ctypes
+        from ctypes import wintypes
+        sess = wintypes.DWORD()
+        if ctypes.windll.kernel32.ProcessIdToSessionId(pid, ctypes.byref(sess)) == 0:
+            return None
+        buf = ctypes.c_wchar_p()
+        bytes_ret = wintypes.DWORD()
+        # WTSUserName = 5
+        res = ctypes.windll.wtsapi32.WTSQuerySessionInformationW(0, sess.value, 5, ctypes.byref(buf), ctypes.byref(bytes_ret))
+        if res and buf.value:
+            username = buf.value
+            ctypes.windll.wtsapi32.WTSFreeMemory(buf)
+            return username.strip() if username else None
+    except Exception:
+        pass
+    return None
+
+# --- HELPER: XÁC ĐỊNH USER THỰC THI (KẾT HỢP WEB USER + WINDOWS OS/RDP USER) ---
 def get_action_username(current_web_user=None):
     """
     Tự động xác định tên người dùng thực hiện:
-    - Lấy User Windows OS (%USERNAME% hoặc getpass)
-    - Kết hợp với User Web (nếu có đăng nhập)
-    - Định dạng: 'admin (Win: HUU MINH)' hoặc 'Win: HUU MINH'
+    1. Ưu tiên lấy User Windows của phiên RDP thực tế (qua session / socket client port)
+    2. Fallback sang User Windows của tiến trình Server (%USERNAME% / getpass)
+    3. Kết hợp với User Web (nếu có đăng nhập): 'admin (Win: laitrongkien)'
     """
     win_user = ""
     try:
-        win_user = os.environ.get('USERNAME') or os.environ.get('USER') or getpass.getuser() or ""
+        if session:
+            win_user = session.get('win_rdp_user', '')
     except Exception:
-        win_user = os.environ.get('USERNAME') or ""
+        pass
+
+    if not win_user:
+        try:
+            if request:
+                port = int(request.environ.get('REMOTE_PORT', 0))
+                if port:
+                    win_user = get_rdp_user_from_port(port) or ""
+                    if win_user and session:
+                        session['win_rdp_user'] = win_user
+        except Exception:
+            pass
+
+    if not win_user:
+        try:
+            win_user = os.environ.get('USERNAME') or os.environ.get('USER') or getpass.getuser() or ""
+        except Exception:
+            win_user = os.environ.get('USERNAME') or ""
 
     web_user = ""
     if current_web_user and getattr(current_web_user, 'is_authenticated', False):
@@ -82,6 +166,54 @@ socketio = SocketIO(app, async_mode='threading')
 # threading.Event toàn cục vì thao tác của user này sẽ ảnh hưởng user khác.
 task_stop_events = {}
 task_stop_lock = threading.Lock()
+route_jobs = {}
+route_jobs_lock = threading.Lock()
+
+def _route_job_room(job_id):
+    return f"route-job:{job_id}"
+
+def _prune_route_jobs():
+    cutoff = time.time() - 3600
+    with route_jobs_lock:
+        expired = [
+            job_id for job_id, job in route_jobs.items()
+            if job.get('completed_at', float('inf')) < cutoff
+        ]
+        for job_id in expired:
+            route_jobs.pop(job_id, None)
+
+def _emit_route_job_event(job_id, event, data):
+    with route_jobs_lock:
+        job = route_jobs.get(job_id)
+        if not job:
+            return
+        payload = dict(data or {})
+        payload['job_id'] = job_id
+        payload['job_seq'] = len(job['events']) + 1
+        job['events'].append({'event': event, 'data': payload})
+        if event in (
+            'check_finished', 'execution_finished', 'uctt_check_result',
+            'uctt_finished', 'a2p_fetch_finished', 'a2p_finished'
+        ):
+            job['status'] = 'completed'
+            job['completed_at'] = time.time()
+        # Serialize emissions from the two node threads so sequence order is
+        # identical in the buffer and on the Socket.IO connection.
+        socketio.emit(event, payload, room=_route_job_room(job_id))
+
+def _emit_to_task_room(room, event, data=None):
+    prefix = 'route-job:'
+    if isinstance(room, str) and room.startswith(prefix):
+        _emit_route_job_event(room[len(prefix):], event, data or {})
+    else:
+        socketio.emit(event, data or {}, room=room)
+
+def _get_owned_route_job(job_id):
+    with route_jobs_lock:
+        job = route_jobs.get(job_id)
+        if job and job['owner_id'] == current_user.id:
+            return job
+    return None
 
 def _get_task_stop(sid):
     with task_stop_lock:
@@ -105,6 +237,14 @@ def socket_login_required(fn):
 def handle_socket_connect(auth=None):
     if not current_user.is_authenticated:
         return False
+    try:
+        port = int(request.environ.get('REMOTE_PORT', 0))
+        if port:
+            rdp_user = get_rdp_user_from_port(port)
+            if rdp_user:
+                session['win_rdp_user'] = rdp_user
+    except Exception:
+        pass
 
 SSH_CONFIG = {
     'TSSE2C': {'host': '10.202.47.54', 'user': 'minhth', 'pass': 'S@igon#10'},
@@ -318,6 +458,26 @@ def change_password():
             
     return render_template('change_password.html')
 
+# --- MIDDLEWARE: TỰ ĐỘNG DÒ TÌM USER WINDOWS RDP KHI MỞ TRÌNH DUYỆT ---
+@app.before_request
+def detect_rdp_user():
+    try:
+        port = int(request.environ.get('REMOTE_PORT', 0))
+        if port:
+            rdp_user = get_rdp_user_from_port(port)
+            if rdp_user:
+                session['win_rdp_user'] = rdp_user
+    except Exception:
+        pass
+
+# --- CONTEXT PROCESSOR: TRUYỀN WIN USER RA MỌI TEMPLATE ---
+@app.context_processor
+def inject_user_context():
+    win_user = session.get('win_rdp_user', '') if session else ''
+    if not win_user:
+        win_user = os.environ.get('USERNAME') or ''
+    return dict(win_rdp_user=win_user)
+
 # --- MIDDLEWARE: CHẶN USER CHƯA ĐỔI PASS ---
 @app.before_request
 def check_password_change():
@@ -407,9 +567,41 @@ def _parse_anbsp_output(raw_output, b_number_full):
 # --- SOCKET EVENTS ---
 @socketio.on('stop_task')
 @socket_login_required
-def handle_stop_task():
+def handle_stop_task(data=None):
+    job_id = (data or {}).get('job_id')
+    job = _get_owned_route_job(job_id) if job_id else None
+    if job:
+        job['stop_event'].set()
+        _emit_route_job_event(job_id, 'log_system', {'msg': '🛑 Đã nhận lệnh DỪNG...', 'type': 'error'})
+        return
     _get_task_stop(request.sid).set()
     emit('log_system', {'msg': '🛑 Đã nhận lệnh DỪNG...', 'type': 'error'})
+
+@socketio.on('resume_route_job')
+@socket_login_required
+def handle_resume_route_job(data):
+    job_id = str((data or {}).get('job_id', ''))
+    job = _get_owned_route_job(job_id)
+    if not job:
+        emit('route_job_snapshot', {'job_id': job_id, 'found': False})
+        return
+
+    join_room(_route_job_room(job_id))
+    try:
+        after_seq = max(0, int((data or {}).get('after_seq', 0)))
+    except (TypeError, ValueError):
+        after_seq = 0
+    with route_jobs_lock:
+        events = [event for event in job['events'] if event['data']['job_seq'] > after_seq]
+        status = job['status']
+        kind = job['kind']
+    emit('route_job_snapshot', {
+        'job_id': job_id,
+        'found': True,
+        'status': status,
+        'kind': kind,
+        'events': events
+    })
 
 @socketio.on('generate_config_preview')
 @socket_login_required
@@ -423,21 +615,48 @@ def handle_generate_preview(data):
 @socketio.on('run_check_automation')
 @socket_login_required
 def handle_check_automation(data):
-    sid = request.sid
+    job_id = str(data.get('job_id', ''))
+    if not re.fullmatch(r'[A-Za-z0-9_-]{8,64}', job_id):
+        emit('check_finished', {'ok': False, 'error': 'Mã tác vụ kiểm tra không hợp lệ.'})
+        return
+
     input_text = data.get('input', '')
     allow_free = data.get('allow_free', False)
     check_commands = generate_commands(input_text, allow_free_input=allow_free, skip_errors=True, mode='CHECK')
     if not check_commands:
-        emit('log_system', {'msg': '❌ Không có lệnh kiểm tra.', 'type': 'error'}); return
-    emit('log_system', {'msg': f'🔄 Đang kiểm tra {len(check_commands)} lệnh...', 'type': 'info'})
-    stop_ev = _get_task_stop(sid)
-    stop_ev.clear()
-    emit('clear_results')
+        emit('check_finished', {'ok': False, 'error': 'Không có lệnh kiểm tra.'})
+        return
+
+    _prune_route_jobs()
+    stop_ev = threading.Event()
+    with route_jobs_lock:
+        if job_id in route_jobs:
+            emit('check_finished', {'ok': False, 'error': 'Mã tác vụ đã tồn tại.'})
+            return
+        route_jobs[job_id] = {
+            'owner_id': current_user.id,
+            'kind': 'check',
+            'status': 'running',
+            'events': [],
+            'stop_event': stop_ev,
+            'created_at': time.time()
+        }
+    room = _route_job_room(job_id)
+    join_room(room)
+    _emit_route_job_event(job_id, 'log_system', {
+        'msg': f'🔄 Đang kiểm tra {len(check_commands)} lệnh...',
+        'type': 'info'
+    })
+    _emit_route_job_event(job_id, 'clear_results', {})
+
     def run_wrapper():
         results = {}
 
         def run_node(node_name):
-            results[node_name] = run_ssh_task(node_name, check_commands, True, stop_ev, sid)
+            results[node_name] = run_ssh_task(
+                node_name, check_commands, True, stop_ev, room,
+                event_callback=lambda event, payload: _emit_route_job_event(job_id, event, payload)
+            )
 
         t1 = threading.Thread(target=run_node, args=('TSSE2C',))
         t2 = threading.Thread(target=run_node, args=('TSSE2D',))
@@ -449,17 +668,23 @@ def handle_check_automation(data):
         
         # Chỉ cho phép sinh cấu hình khi CẢ HAI node kiểm tra thành công.
         ok = bool(results.get('TSSE2C')) and bool(results.get('TSSE2D')) and not stop_ev.is_set()
-        socketio.emit('check_finished', {'ok': ok}, room=sid)
+        _emit_route_job_event(job_id, 'check_finished', {'ok': ok})
 
     threading.Thread(target=run_wrapper).start()
 
 @socketio.on('execute_config_ssh')
 @socket_login_required
 def handle_execute_config(data):
-    sid = request.sid
+    job_id = str(data.get('job_id', ''))
+    if not re.fullmatch(r'[A-Za-z0-9_-]{8,64}', job_id):
+        emit('execution_finished', {'ok': False, 'error': 'Mã tác vụ không hợp lệ.'})
+        return
+
     # 1. Lấy danh sách lệnh
     commands = [line.strip() for line in data.get('commands', '').split('\n') if line.strip() and not line.strip().startswith('#')]
-    if not commands: return
+    if not commands:
+        emit('execution_finished', {'ok': False, 'error': 'Không có lệnh cấu hình để thực thi.'})
+        return
     
     # 2. Xử lý làm sạch nội dung hiển thị cho Log
     raw_input_data = data.get('raw_input', '')
@@ -482,8 +707,22 @@ def handle_execute_config(data):
     if len(target_nodes) < 2:
         log_content = f"[Đẩy RIÊNG: {', '.join(target_nodes)}]\n" + log_content
 
-    stop_ev = _get_task_stop(sid)
-    stop_ev.clear()
+    _prune_route_jobs()
+    stop_ev = threading.Event()
+    with route_jobs_lock:
+        if job_id in route_jobs:
+            emit('execution_finished', {'ok': False, 'error': 'Mã tác vụ đã tồn tại.'})
+            return
+        route_jobs[job_id] = {
+            'owner_id': current_user.id,
+            'kind': 'execute',
+            'status': 'running',
+            'events': [],
+            'stop_event': stop_ev,
+            'created_at': time.time()
+        }
+    room = _route_job_room(job_id)
+    join_room(room)
 
     # 3. Luồng chạy chính
     def run_wrapper():
@@ -491,7 +730,10 @@ def handle_execute_config(data):
         results = {}
 
         def run_node(node_name):
-            results[node_name] = run_ssh_task(node_name, commands, False, stop_ev, sid)
+            results[node_name] = run_ssh_task(
+                node_name, commands, False, stop_ev, room,
+                event_callback=lambda event, payload: _emit_route_job_event(job_id, event, payload)
+            )
 
         for node in target_nodes:
             t = threading.Thread(target=run_node, args=(node,))
@@ -510,14 +752,20 @@ def handle_execute_config(data):
                 db.session.add(new_log)
                 db.session.commit()
         
-        socketio.emit('execution_finished', {'ok': ok}, room=sid)
+        _emit_route_job_event(job_id, 'execution_finished', {'ok': ok})
 
     threading.Thread(target=run_wrapper).start()
 
 # --- WORKER SSH (CORE LOGIC ĐÃ SỬA) ---
-def run_ssh_task(node_name, commands, is_check_job, stop_ev, room):
+def run_ssh_task(node_name, commands, is_check_job, stop_ev, room, event_callback=None):
+    def send_event(event, data):
+        if event_callback:
+            event_callback(event, data)
+        else:
+            socketio.emit(event, data, room=room)
+
     def log(msg, type='raw'):
-        socketio.emit('log', {'msg': msg, 'type': type, 'node': node_name}, room=room)
+        send_event('log', {'msg': msg, 'type': type, 'node': node_name})
 
     def read_turbo(shell, timeout=1.0):
         """Đọc buffer tốc độ cao"""
@@ -626,10 +874,10 @@ def run_ssh_task(node_name, commands, is_check_job, stop_ev, room):
                 b_match = re.search(r'B=([\d-]+)', cmd)
                 if b_match:
                     parsed = _parse_anbsp_output(out, b_match.group(1))
-                    socketio.emit('check_result_item', {
+                    send_event('check_result_item', {
                         'node': node_name, 'b_num': b_match.group(1),
                         'status': parsed['status'], 'desc': parsed['desc']
-                    }, room=room)
+                    })
                     if not ok or parsed['status'] == 'error':
                         task_success = False
 
@@ -736,7 +984,7 @@ def run_ssh_task(node_name, commands, is_check_job, stop_ev, room):
         if ssh: 
             try: shell.send("exit;\n"); ssh.close()
             except: pass
-        socketio.emit('task_finished', {'ok': task_success, 'node': node_name}, room=room)
+        send_event('task_finished', {'ok': task_success, 'node': node_name})
 
     return task_success
 
@@ -818,7 +1066,7 @@ def _decide_uctt_actions(op_state, nop_state, rc_raw):
 
 # --- 2. HELPER SSH CHO UCTT (port read_shell_output / send_and_wait / ...) ---
 def _uctt_log(node_name, msg, log_type, room):
-    socketio.emit('log', {'msg': msg, 'type': log_type, 'node': node_name}, room=room)
+    _emit_to_task_room(room, 'log', {'msg': msg, 'type': log_type, 'node': node_name})
 
 def _uctt_read(shell, node_name, stop_ev, room, timeout=2):
     """Đọc buffer tốc độ cao (port read_shell_output)."""
@@ -1063,19 +1311,44 @@ def run_uctt_exec_task(node_name, commands, action, rc_raw, results, lock, stop_
 @socketio.on('run_uctt_check')
 @socket_login_required
 def handle_uctt_check(data):
-    sid = request.sid
+    job_id = str(data.get('job_id', ''))
+    if not re.fullmatch(r'[A-Za-z0-9_-]{8,64}', job_id):
+        emit('uctt_check_result', {
+            'sync_ok': False,
+            'status_text': 'Mã tác vụ kiểm tra không hợp lệ.',
+            'status_color': 'danger',
+            'changeover': {'enabled': False, 'label': 'Chuyển đổi...', 'action': None},
+            'fallback': {'enabled': False, 'label': 'Fallback (Không khả dụng)', 'action': None}
+        })
+        return
+
     rc_raw = data.get('rc', '113')
-    stop_ev = _get_task_stop(sid)
-    stop_ev.clear()
-    emit('log_system', {'msg': f'🔄 Đang kiểm tra UCTT RC={rc_raw} trên 2C & 2D...', 'type': 'info'})
-    emit('uctt_busy', {'busy': True})
+    _prune_route_jobs()
+    stop_ev = threading.Event()
+    with route_jobs_lock:
+        if job_id in route_jobs:
+            return
+        route_jobs[job_id] = {
+            'owner_id': current_user.id,
+            'kind': 'uctt_check',
+            'status': 'running',
+            'events': [],
+            'stop_event': stop_ev,
+            'created_at': time.time()
+        }
+    room = _route_job_room(job_id)
+    join_room(room)
+    _emit_route_job_event(job_id, 'log_system', {
+        'msg': f'🔄 Đang kiểm tra UCTT RC={rc_raw} trên 2C & 2D...',
+        'type': 'info'
+    })
 
     results = {}
     lock = threading.Lock()
 
     def run_wrapper():
-        t1 = threading.Thread(target=run_uctt_check_task, args=('TSSE2C', rc_raw, results, lock, stop_ev, sid))
-        t2 = threading.Thread(target=run_uctt_check_task, args=('TSSE2D', rc_raw, results, lock, stop_ev, sid))
+        t1 = threading.Thread(target=run_uctt_check_task, args=('TSSE2C', rc_raw, results, lock, stop_ev, room))
+        t2 = threading.Thread(target=run_uctt_check_task, args=('TSSE2D', rc_raw, results, lock, stop_ev, room))
         t1.start(); t2.start()
         t1.join(); t2.join()
 
@@ -1087,22 +1360,22 @@ def handle_uctt_check(data):
 
         # Lỗi hoặc thiếu kết quả
         if isinstance(status_c, Exception) or isinstance(status_d, Exception) or status_c is None or status_d is None:
-            socketio.emit('uctt_check_result', {
+            _emit_route_job_event(job_id, 'uctt_check_result', {
                 'sync_ok': False,
                 'status_text': f'RC={rc_raw}: Lỗi kết nối hoặc lệnh trên ít nhất 1 node.',
                 'status_color': 'danger',
                 'changeover': disabled, 'fallback': disabled_fb
-            }, room=sid)
+            })
             return
 
         # Không đồng bộ
         if status_c != status_d:
-            socketio.emit('uctt_check_result', {
+            _emit_route_job_event(job_id, 'uctt_check_result', {
                 'sync_ok': False,
                 'status_text': f'RC={rc_raw}: ⚠️ KHÔNG ĐỒNG BỘ! (2C: {status_c}, 2D: {status_d}). Vui lòng kiểm tra tay!',
                 'status_color': 'danger',
                 'changeover': disabled, 'fallback': disabled_fb
-            }, room=sid)
+            })
             return
 
         # Đồng bộ -> quyết định nút
@@ -1114,7 +1387,7 @@ def handle_uctt_check(data):
         co, fb = actions['changeover'], actions['fallback']
         preview_co = cmd_sets.get(co['action'], []) if (co['enabled'] and co['action']) else []
         preview_fb = cmd_sets.get(fb['action'], []) if (fb['enabled'] and fb['action']) else []
-        socketio.emit('uctt_check_result', {
+        _emit_route_job_event(job_id, 'uctt_check_result', {
             'sync_ok': True,
             'status_text': f'RC={rc_raw}: OP={op_state.upper()}, NOP={nop_state.upper()} [Đồng bộ ✓]',
             'status_color': 'success',
@@ -1122,14 +1395,14 @@ def handle_uctt_check(data):
             'fallback': actions['fallback'],
             'preview_changeover': preview_co,
             'preview_fallback': preview_fb,
-        }, room=sid)
+        })
 
     threading.Thread(target=run_wrapper).start()
 
 @socketio.on('execute_uctt')
 @socket_login_required
 def handle_uctt_execute(data):
-    sid = request.sid
+    job_id = str(data.get('job_id', ''))
     rc_raw = data.get('rc', '')
     action = data.get('action', '')
     valid_actions = ('uctt_2', 'uctt_1_analog', 'uctt_1_sip', 'fallback')
@@ -1137,6 +1410,9 @@ def handle_uctt_execute(data):
     if not rc_raw or action not in valid_actions:
         emit('log_system', {'msg': '❌ Yêu cầu UCTT không hợp lệ.', 'type': 'error'})
         emit('uctt_finished', {'ok': False})
+        return
+    if not re.fullmatch(r'[A-Za-z0-9_-]{8,64}', job_id):
+        emit('uctt_finished', {'ok': False, 'error': 'Mã tác vụ UCTT không hợp lệ.'})
         return
 
     try:
@@ -1150,16 +1426,32 @@ def handle_uctt_execute(data):
 
         # Lấy user TRƯỚC khi vào thread (thread phụ không có request context)
         user_action = get_action_username(current_user)
-        stop_ev = _get_task_stop(sid)
-        stop_ev.clear()
-        emit('log_system', {'msg': f'🚨 Bắt đầu thực thi UCTT [{action}] RC={rc_raw}...', 'type': 'info'})
+        _prune_route_jobs()
+        stop_ev = threading.Event()
+        with route_jobs_lock:
+            if job_id in route_jobs:
+                return
+            route_jobs[job_id] = {
+                'owner_id': current_user.id,
+                'kind': 'uctt_execute',
+                'status': 'running',
+                'events': [],
+                'stop_event': stop_ev,
+                'created_at': time.time()
+            }
+        room = _route_job_room(job_id)
+        join_room(room)
+        _emit_route_job_event(job_id, 'log_system', {
+            'msg': f'🚨 Bắt đầu thực thi UCTT [{action}] RC={rc_raw}...',
+            'type': 'info'
+        })
 
         results = {}
         lock = threading.Lock()
 
         def run_wrapper():
-            t1 = threading.Thread(target=run_uctt_exec_task, args=('TSSE2C', commands, action, rc_raw, results, lock, stop_ev, sid))
-            t2 = threading.Thread(target=run_uctt_exec_task, args=('TSSE2D', commands, action, rc_raw, results, lock, stop_ev, sid))
+            t1 = threading.Thread(target=run_uctt_exec_task, args=('TSSE2C', commands, action, rc_raw, results, lock, stop_ev, room))
+            t2 = threading.Thread(target=run_uctt_exec_task, args=('TSSE2D', commands, action, rc_raw, results, lock, stop_ev, room))
             t1.start(); t2.start()
             t1.join(); t2.join()
 
@@ -1173,7 +1465,7 @@ def handle_uctt_execute(data):
                     db.session.add(new_log)
                     db.session.commit()
 
-            socketio.emit('uctt_finished', {'ok': ok, 'rc': rc_raw, 'action': action}, room=sid)
+            _emit_route_job_event(job_id, 'uctt_finished', {'ok': ok, 'rc': rc_raw, 'action': action})
 
         threading.Thread(target=run_wrapper).start()
     except Exception as e:
@@ -1349,7 +1641,7 @@ def _a2p_get_stop(sid):
     return ev
 
 def _a2p_log(sid, msg, log_type='raw'):
-    socketio.emit('log', {'msg': msg, 'type': log_type, 'node': A2P_NODE}, room=sid)
+    _emit_to_task_room(sid, 'log', {'msg': msg, 'type': log_type, 'node': A2P_NODE})
 
 def _a2p_clean_chunk(chunk):
     """Làm gọn output cho dễ đọc (port _clean_chunk)."""
@@ -1419,7 +1711,7 @@ def run_a2p_fetch_task(sid, stop_ev):
         history = _a2p_get_history()
         rows = [[n, history.get(n, "Unknown")] for n in numbers]
 
-        socketio.emit('a2p_blocklist', {'rows': rows, 'count': len(numbers)}, room=sid)
+        _emit_to_task_room(sid, 'a2p_blocklist', {'rows': rows, 'count': len(numbers)})
         try:
             shell.send("exit;\r")
         except Exception:
@@ -1427,12 +1719,12 @@ def run_a2p_fetch_task(sid, stop_ev):
 
     except Exception as e:
         _a2p_log(sid, f"❌ LỖI QUÉT: {e}\n", 'error')
-        socketio.emit('a2p_blocklist', {'rows': None, 'error': str(e)}, room=sid)
+        _emit_to_task_room(sid, 'a2p_blocklist', {'rows': None, 'error': str(e)})
     finally:
         if ssh:
             try: ssh.close()
             except Exception: pass
-        socketio.emit('a2p_fetch_finished', room=sid)
+        _emit_to_task_room(sid, 'a2p_fetch_finished')
 
 def run_a2p_exec_task(sid, stop_ev, commands, final_add, final_del, user_action, results):
     """Thực thi bộ lệnh ZCW* trên TSSN2D (port execute_ssh). Dừng nếu 1 lệnh lỗi.
@@ -1547,12 +1839,32 @@ def handle_a2p_init():
 
 @socketio.on('run_a2p_fetch')
 @socket_login_required
-def handle_a2p_fetch():
-    sid = request.sid
-    stop_ev = _a2p_get_stop(sid)
-    stop_ev.clear()
-    emit('log_system', {'msg': '🔄 Đang quét danh sách số đang chặn A2P...', 'type': 'info'})
-    socketio.start_background_task(run_a2p_fetch_task, sid, stop_ev)
+def handle_a2p_fetch(data=None):
+    job_id = str((data or {}).get('job_id', ''))
+    if not re.fullmatch(r'[A-Za-z0-9_-]{8,64}', job_id):
+        emit('a2p_fetch_finished', {'error': 'Mã tác vụ quét A2P không hợp lệ.'})
+        return
+
+    _prune_route_jobs()
+    stop_ev = threading.Event()
+    with route_jobs_lock:
+        if job_id in route_jobs:
+            return
+        route_jobs[job_id] = {
+            'owner_id': current_user.id,
+            'kind': 'a2p_fetch',
+            'status': 'running',
+            'events': [],
+            'stop_event': stop_ev,
+            'created_at': time.time()
+        }
+    room = _route_job_room(job_id)
+    join_room(room)
+    _emit_route_job_event(job_id, 'log_system', {
+        'msg': '🔄 Đang quét danh sách số đang chặn A2P...',
+        'type': 'info'
+    })
+    socketio.start_background_task(run_a2p_fetch_task, room, stop_ev)
 
 @socketio.on('run_a2p_analyze')
 @socket_login_required
@@ -1580,8 +1892,7 @@ def handle_a2p_analyze(data):
 @socketio.on('execute_a2p')
 @socket_login_required
 def handle_a2p_execute(data):
-    sid = request.sid
-    stop_ev = _a2p_get_stop(sid)
+    job_id = str(data.get('job_id', ''))
     # Chỉ nhận số hợp lệ; server tự sinh lại lệnh (không tin chuỗi lệnh client gửi)
     final_add = [str(x) for x in data.get('final_add', []) if str(x).isdigit()]
     final_del = [str(x) for x in data.get('final_del', []) if str(x).isdigit()]
@@ -1589,16 +1900,36 @@ def handle_a2p_execute(data):
         emit('log_system', {'msg': '❌ Không có lệnh A2P để chạy.', 'type': 'error'})
         emit('a2p_finished', {'ok': False})
         return
+    if not re.fullmatch(r'[A-Za-z0-9_-]{8,64}', job_id):
+        emit('a2p_finished', {'ok': False, 'error': 'Mã tác vụ A2P không hợp lệ.'})
+        return
 
     commands = _a2p_build_commands(final_add, final_del)
     user_action = get_action_username(current_user)
-    stop_ev.clear()
-    emit('log_system', {'msg': f'🚨 Bắt đầu chặn/gỡ A2P (+{len(final_add)} / -{len(final_del)})...', 'type': 'info'})
+    _prune_route_jobs()
+    stop_ev = threading.Event()
+    with route_jobs_lock:
+        if job_id in route_jobs:
+            return
+        route_jobs[job_id] = {
+            'owner_id': current_user.id,
+            'kind': 'a2p_execute',
+            'status': 'running',
+            'events': [],
+            'stop_event': stop_ev,
+            'created_at': time.time()
+        }
+    room = _route_job_room(job_id)
+    join_room(room)
+    _emit_route_job_event(job_id, 'log_system', {
+        'msg': f'🚨 Bắt đầu chặn/gỡ A2P (+{len(final_add)} / -{len(final_del)})...',
+        'type': 'info'
+    })
 
     results = {}
 
     def run_wrapper():
-        run_a2p_exec_task(sid, stop_ev, commands, final_add, final_del, user_action, results)
+        run_a2p_exec_task(room, stop_ev, commands, final_add, final_del, user_action, results)
         ok = results.get('ok', False)
         # Chỉ cập nhật history + audit khi thành công và không bị dừng
         if ok and not stop_ev.is_set():
@@ -1608,14 +1939,23 @@ def handle_a2p_execute(data):
                                f"XÓA: {', '.join(final_del) or '(không)'}\n" + "\n".join(commands))
                 db.session.add(ActionLog(username=user_action, commands=log_content))
                 db.session.commit()
-        socketio.emit('a2p_finished', {'ok': ok}, room=sid)
+        _emit_route_job_event(job_id, 'a2p_finished', {'ok': ok})
 
     socketio.start_background_task(run_wrapper)
 
 @socketio.on('stop_a2p')
 @socket_login_required
-def handle_a2p_stop():
+def handle_a2p_stop(data=None):
     """Nút DỪNG của A2P: chỉ set cờ dừng của ĐÚNG phiên gọi (không đụng tab/người khác)."""
+    job_id = (data or {}).get('job_id')
+    job = _get_owned_route_job(job_id) if job_id else None
+    if job:
+        job['stop_event'].set()
+        _emit_route_job_event(job_id, 'log_system', {
+            'msg': '🛑 Đã nhận lệnh DỪNG A2P...',
+            'type': 'error'
+        })
+        return
     ev = a2p_stop_events.get(request.sid)
     if ev:
         ev.set()

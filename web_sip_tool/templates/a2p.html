@@ -267,6 +267,9 @@
     var lastScanTime = null;
     var selectedNums = new Set();   // các số đang chọn trong bảng
     var anchorNum = null;           // neo cho Shift+Click
+    var activeA2pJobId = null;
+    var activeA2pJobSeq = 0;
+    var activeA2pJobType = null;
 
     // --- SESSION STATE PERSISTENCE (LƯU & KHÔI PHỤC KHI CHUYỂN TAB) ---
     var A2P_STATE_KEY = 'snoc2_a2p_state';
@@ -297,6 +300,10 @@
                 logA: logA ? logA.innerHTML : '',
                 isFresh: isFresh,
                 lastScanTime: lastScanTime,
+                activeJobId: activeA2pJobId,
+                activeJobSeq: activeA2pJobSeq,
+                activeJobType: activeA2pJobType,
+                isBusy: isBusy,
                 timestamp: Date.now()
             };
             sessionStorage.setItem(A2P_STATE_KEY, JSON.stringify(state));
@@ -373,6 +380,11 @@
                 }
             }
 
+            activeA2pJobId = state.activeJobId || null;
+            activeA2pJobSeq = Number(state.activeJobSeq) || 0;
+            activeA2pJobType = state.activeJobType || null;
+            if (activeA2pJobId && activeA2pJobType) setBusy(true);
+
             isRestoringA2p = false;
         } catch (e) {
             isRestoringA2p = false;
@@ -381,7 +393,15 @@
     }
 
     // --- LOG ---
-    socket.on('log', function(data) {
+    function acceptA2pJobEvent(data) {
+        if (!data || !data.job_id) return true;
+        if (data.job_id !== activeA2pJobId || data.job_seq <= activeA2pJobSeq) return false;
+        activeA2pJobSeq = data.job_seq;
+        return true;
+    }
+
+    function handleA2pLog(data) {
+        if (!acceptA2pJobEvent(data)) return;
         if (data.node !== 'TSSN2D') return;
         var el = document.getElementById('logA');
         if (el) {
@@ -392,9 +412,11 @@
             el.scrollTop = el.scrollHeight;
             saveA2pState();
         }
-    });
+    }
+    socket.on('log', handleA2pLog);
 
-    socket.on('log_system', function(data) {
+    function handleA2pSystemLog(data) {
+        if (!acceptA2pJobEvent(data)) return;
         var el = document.getElementById('logA');
         if (el) {
             var div = document.createElement('div');
@@ -402,6 +424,51 @@
             div.className = 'log-system log-line';
             el.appendChild(div); 
             el.scrollTop = el.scrollHeight;
+            saveA2pState();
+        }
+    }
+    socket.on('log_system', handleA2pSystemLog);
+
+    function createA2pJobId() {
+        return (window.crypto && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+    }
+
+    function resumeActiveA2pJob() {
+        if (!activeA2pJobId || !socket.connected) return;
+        socket.emit('resume_route_job', {
+            job_id: activeA2pJobId,
+            after_seq: activeA2pJobSeq
+        });
+    }
+
+    function applyA2pJobEvent(event) {
+        if (!event) return;
+        if (event.event === 'log') handleA2pLog(event.data);
+        else if (event.event === 'log_system') handleA2pSystemLog(event.data);
+        else if (event.event === 'a2p_blocklist') handleA2pBlocklist(event.data);
+        else if (event.event === 'a2p_fetch_finished') handleA2pFetchFinished(event.data);
+        else if (event.event === 'a2p_finished') handleA2pFinished(event.data);
+    }
+
+    socket.on('route_job_snapshot', function(data) {
+        if (!activeA2pJobId || !data || data.job_id !== activeA2pJobId) return;
+        if (!data.found) {
+            activeA2pJobId = null;
+            activeA2pJobType = null;
+            setBusy(false);
+            saveA2pState();
+            showAlert('Không thể nối lại tác vụ A2P đang chạy.', {
+                title: 'Mất trạng thái tác vụ',
+                type: 'warning'
+            });
+            return;
+        }
+        activeA2pJobType = data.kind || activeA2pJobType;
+        (data.events || []).forEach(applyA2pJobEvent);
+        if (activeA2pJobId && data.status === 'running') {
+            setBusy(true);
             saveA2pState();
         }
     });
@@ -455,10 +522,11 @@
     }
 
     // --- KHI MỞ TRANG: tự quét lần đầu / cảnh báo dữ liệu cũ ---
-    socket.on('connect', function() { 
-        var saved = sessionStorage.getItem(A2P_STATE_KEY);
-        if (!saved) {
-            socket.emit('a2p_init'); 
+    socket.on('connect', function() {
+        if (activeA2pJobId) {
+            resumeActiveA2pJob();
+        } else {
+            socket.emit('a2p_init');
         }
     });
 
@@ -488,13 +556,17 @@
     function fetchData() {
         clearLog();
         lastAdded = [];
+        activeA2pJobId = createA2pJobId();
+        activeA2pJobSeq = 0;
+        activeA2pJobType = 'a2p_fetch';
         setBusy(true);
         document.getElementById('countLabel').textContent = 'Đang quét...';
-        socket.emit('run_a2p_fetch');
+        socket.emit('run_a2p_fetch', { job_id: activeA2pJobId });
         saveA2pState();
     }
 
-    socket.on('a2p_blocklist', function(data) {
+    function handleA2pBlocklist(data) {
+        if (!acceptA2pJobEvent(data)) return;
         if (data.rows === null) {
             document.getElementById('countLabel').textContent = '❌ Lỗi quét: ' + (data.error || '');
             return;
@@ -504,12 +576,20 @@
         document.getElementById('countLabel').textContent = '📊 ' + data.count + ' số đang chặn.';
         markFresh();
         saveA2pState();
-    });
+    }
+    socket.on('a2p_blocklist', handleA2pBlocklist);
 
-    socket.on('a2p_fetch_finished', function() {
+    function handleA2pFetchFinished(data) {
+        if (!acceptA2pJobEvent(data)) return;
+        activeA2pJobId = null;
+        activeA2pJobType = null;
         setBusy(false);
+        if (data && data.error) {
+            document.getElementById('countLabel').textContent = '❌ ' + data.error;
+        }
         saveA2pState();
-    });
+    }
+    socket.on('a2p_fetch_finished', handleA2pFetchFinished);
 
     // --- RENDER TABLE + SEARCH ---
     function renderTable() {
@@ -723,15 +803,25 @@
             okText: 'Tiến hành chạy',
             onOk: function() {
                 lastAdded = planAdd.slice();
+                activeA2pJobId = createA2pJobId();
+                activeA2pJobSeq = 0;
+                activeA2pJobType = 'a2p_execute';
                 setBusy(true);
                 document.getElementById('report').textContent = 'Đang thực thi...';
-                socket.emit('execute_a2p', { final_add: planAdd, final_del: planDel });
+                socket.emit('execute_a2p', {
+                    job_id: activeA2pJobId,
+                    final_add: planAdd,
+                    final_del: planDel
+                });
                 saveA2pState();
             }
         });
     }
 
-    socket.on('a2p_finished', function(data) {
+    function handleA2pFinished(data) {
+        if (!acceptA2pJobEvent(data)) return;
+        activeA2pJobId = null;
+        activeA2pJobType = null;
         if (data.ok) {
             showAlert('Đã hoàn tất thực thi chặn/gỡ! Hệ thống đang quét lại danh sách...', {
                 title: 'Thực thi thành công',
@@ -752,7 +842,8 @@
             document.getElementById('btnExecute').disabled = false;
             saveA2pState();
         }
-    });
+    }
+    socket.on('a2p_finished', handleA2pFinished);
 
     function stopTask() {
         showConfirm('Bạn có chắc chắn muốn DỪNG ngay lập tức tác vụ A2P?', {
@@ -761,7 +852,7 @@
             isDanger: true,
             okText: 'Dừng ngay',
             onOk: function() {
-                socket.emit('stop_a2p');
+                socket.emit('stop_a2p', { job_id: activeA2pJobId });
                 showToast('Đã gửi tín hiệu dừng tác vụ', 'warning');
                 saveA2pState();
             }
@@ -770,6 +861,7 @@
 
     // Khôi phục trạng thái A2P khi mở tab
     restoreA2pState();
+    resumeActiveA2pJob();
     window.addEventListener('beforeunload', saveA2pState);
 </script>
 </body>
